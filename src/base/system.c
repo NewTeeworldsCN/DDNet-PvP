@@ -295,6 +295,37 @@ unsigned io_read(IOHANDLE io, void *buffer, unsigned size)
 	return fread(buffer, 1, size, (FILE *)io);
 }
 
+void io_read_all(IOHANDLE io, void **result, unsigned *result_len)
+{
+	unsigned len = (unsigned) io_length(io);
+	char *buffer = (char *) malloc(len + 1);
+	unsigned read = io_read(io, buffer, len + 1); // +1 to check if the file size is larger than expected
+	if(read < len)
+	{
+		buffer = (char *) realloc(buffer, read + 1);
+		len = read;
+	}
+	else if(read > len)
+	{
+		unsigned cap = 2 * read;
+		len = read;
+		buffer = (char *) realloc(buffer, cap);
+		while((read = io_read(io, buffer + len, cap - len)) != 0)
+		{
+			len += read;
+			if(len == cap)
+			{
+				cap *= 2;
+				buffer = (char *) realloc(buffer, cap);
+			}
+		}
+		buffer = (char *) realloc(buffer, len + 1);
+	}
+	buffer[len] = 0;
+	*result = buffer;
+	*result_len = len;
+}
+
 unsigned io_skip(IOHANDLE io, int size)
 {
 	fseek((FILE *)io, size, SEEK_CUR);
@@ -2245,6 +2276,59 @@ int fs_rename(const char *oldname, const char *newname)
 	return 0;
 }
 
+int fs_file_time(const char *name, time_t *created, time_t *modified)
+{
+#if defined(CONF_FAMILY_WINDOWS)
+	WIN32_FIND_DATAW finddata;
+	HANDLE handle;
+	WCHAR wBuffer[IO_MAX_PATH_LENGTH];
+
+	MultiByteToWideChar(CP_UTF8, 0, name, -1, wBuffer, sizeof(wBuffer) / sizeof(WCHAR));
+	handle = FindFirstFileW(wBuffer, &finddata);
+	if(handle == INVALID_HANDLE_VALUE)
+		return 1;
+
+	*created = filetime_to_unixtime(&finddata.ftCreationTime);
+	*modified = filetime_to_unixtime(&finddata.ftLastWriteTime);
+	FindClose(handle);
+#elif defined(CONF_FAMILY_UNIX)
+	struct stat sb;
+	if(stat(name, &sb))
+		return 1;
+
+	*created = sb.st_ctime;
+	*modified = sb.st_mtime;
+#else
+#error not implemented
+#endif
+
+	return 0;
+}
+
+int fs_makedir_recursive(const char *path)
+{
+	char buffer[2048];
+	int len;
+	int i;
+	str_copy(buffer, path, sizeof(buffer));
+	len = str_length(buffer);
+	// ignore a leading slash
+	for(i = 1; i < len; i++)
+	{
+		char b = buffer[i];
+		if((buffer[i] == '/' || buffer[i] == '\\') && buffer[i + 1] != '\0' && buffer[i - 1] != ':')
+		{
+			buffer[i] = '\0';
+			if(fs_makedir(buffer) < 0)
+			{
+				return -1;
+			}
+			buffer[i] = b;
+		}
+	}
+	return fs_makedir(path);
+}
+
 void swap_endian(void *data, unsigned elem_size, unsigned num)
 {
 	char *src = (char *)data;
@@ -2776,6 +2860,19 @@ const char *str_find(const char *haystack, const char *needle)
 	}
 
 	return 0;
+}
+
+const char *str_startswith_nocase(const char *str, const char *prefix)
+{
+	int prefixl = str_length(prefix);
+	if(str_comp_nocase_num(str, prefix, prefixl) == 0)
+	{
+		return str + prefixl;
+	}
+	else
+	{
+		return 0;
+	}
 }
 
 const char *str_rchr(const char *haystack, char needle)

@@ -13,6 +13,7 @@
 #include <engine/shared/config.h>
 #include <engine/shared/datafile.h>
 #include <engine/shared/linereader.h>
+#include <engine/shared/jsonwriter.h>
 #include <engine/shared/memheap.h>
 #include <engine/storage.h>
 #include <game/collision.h>
@@ -2059,6 +2060,7 @@ void CGameContext::OnMessage(int MsgID, CUnpacker *pUnpacker, int ClientID)
 			}
 			Server()->SetClientDDNetVersion(ClientID, DDNetVersion);
 			OnClientDDNetVersionKnown(ClientID);
+			Server()->ExpireServerInfo();
 		}
 		// PvP: disable clients showother settings
 
@@ -3241,6 +3243,40 @@ void CGameContext::SendChatResponseAll(const char *pLine, void *pUser)
 	pSelf->SendChat(-1, CHAT_ALL, pLine);
 
 	ReentryGuard--;
+}
+
+void CGameContext::OnUpdatePlayerServerInfo(CJsonStringWriter *pJSonWriter, int Id)
+{
+	if(!m_apPlayers[Id])
+		return;
+
+	CTeeInfo &TeeInfo = m_apPlayers[Id]->m_TeeInfos;
+
+	pJSonWriter->WriteAttribute("skin");
+	pJSonWriter->BeginObject();
+
+	// 0.6
+	pJSonWriter->WriteAttribute("name");
+	pJSonWriter->WriteStrValue(TeeInfo.m_SkinName);
+
+	if(TeeInfo.m_UseCustomColor)
+	{
+		pJSonWriter->WriteAttribute("color_body");
+		pJSonWriter->WriteIntValue(TeeInfo.m_ColorBody);
+
+		pJSonWriter->WriteAttribute("color_feet");
+		pJSonWriter->WriteIntValue(TeeInfo.m_ColorFeet);
+	}
+
+	pJSonWriter->EndObject();
+
+	pJSonWriter->WriteAttribute("afk");
+	pJSonWriter->WriteBoolValue(false);
+
+	const int Team = m_apPlayers[Id]->GetTeam() == TEAM_SPECTATORS ? -1 : GetDDRaceTeam(Id);
+
+	pJSonWriter->WriteAttribute("team");
+	pJSonWriter->WriteIntValue(Team);
 }
 
 void CGameContext::SendChatResponse(const char *pLine, void *pUser)

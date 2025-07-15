@@ -118,6 +118,9 @@ static int new_value (json_state * state,
       {
          case json_array:
 
+            if (value->u.array.length == 0)
+               break;
+
             if (! (value->u.array.values = (json_value **) json_alloc
                (state, value->u.array.length * sizeof (json_value *), 0)) )
             {
@@ -129,9 +132,12 @@ static int new_value (json_state * state,
 
          case json_object:
 
+            if (value->u.object.length == 0)
+               break;
+
             values_size = sizeof (*value->u.object.values) * value->u.object.length;
 
-            if (! ((*(void **) &value->u.object.values) = json_alloc
+            if (! (value->u.object.values = (json_object_entry *) json_alloc
                   (state, values_size + ((unsigned long) value->u.object.values), 0)) )
             {
                return 0;
@@ -291,7 +297,7 @@ json_value * json_parse_ex (json_settings * settings,
                   case 't':  string_add ('\t');  break;
                   case 'u':
 
-                    if (end - state.ptr < 4 || 
+                    if (end - state.ptr <= 4 || 
                         (uc_b1 = hex_value (*++ state.ptr)) == 0xFF ||
                         (uc_b2 = hex_value (*++ state.ptr)) == 0xFF ||
                         (uc_b3 = hex_value (*++ state.ptr)) == 0xFF ||
@@ -308,7 +314,7 @@ json_value * json_parse_ex (json_settings * settings,
                     if ((uchar & 0xF800) == 0xD800) {
                         json_uchar uchar2;
                         
-                        if (end - state.ptr < 6 || (*++ state.ptr) != '\\' || (*++ state.ptr) != 'u' ||
+                        if (end - state.ptr <= 6 || (*++ state.ptr) != '\\' || (*++ state.ptr) != 'u' ||
                             (uc_b1 = hex_value (*++ state.ptr)) == 0xFF ||
                             (uc_b2 = hex_value (*++ state.ptr)) == 0xFF ||
                             (uc_b3 = hex_value (*++ state.ptr)) == 0xFF ||
@@ -1002,3 +1008,4 @@ void json_value_free (json_value * value)
    settings.mem_free = default_free;
    json_value_free_ex (&settings, value);
 }
+
