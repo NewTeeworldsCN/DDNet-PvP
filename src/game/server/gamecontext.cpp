@@ -226,7 +226,7 @@ void CGameContext::SendChatTarget(int To, const char *pText, int Flags)
 	{
 		for(int i = 0; i < MAX_CLIENTS; i++)
 		{
-			if(!((Server()->IsSixup(i) && (Flags & CHAT_SIXUP)) ||
+			if(!m_apPlayers[i] && !((Server()->IsSixup(i) && (Flags & CHAT_SIXUP)) ||
 				   (!Server()->IsSixup(i) && (Flags & CHAT_SIX))))
 				continue;
 
