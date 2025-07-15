@@ -4,13 +4,14 @@
 from datatypes import Enum, Flags, NetBool, NetEvent, NetIntAny, NetIntRange, NetMessage, NetMessageEx, NetObject, NetObjectEx, NetString, NetStringHalfStrict, NetStringStrict, NetTick
 
 Emotes = ["NORMAL", "PAIN", "HAPPY", "SURPRISE", "ANGRY", "BLINK"]
-PlayerFlags = ["PLAYING", "IN_MENU", "CHATTING", "SCOREBOARD", "AIM"]
+PlayerFlags = ["PLAYING", "IN_MENU", "CHATTING", "SCOREBOARD", "AIM", "SPEC_CAM"]
 GameFlags = ["TEAMS", "FLAGS"]
 GameStateFlags = ["GAMEOVER", "SUDDENDEATH", "PAUSED", "RACETIME"]
 CharacterFlags = ["SOLO", "JETPACK", "NO_COLLISION", "ENDLESS_HOOK", "ENDLESS_JUMP", "SUPER",
                   "NO_HAMMER_HIT", "NO_SHOTGUN_HIT", "NO_GRENADE_HIT", "NO_LASER_HIT", "NO_HOOK",
                   "TELEGUN_GUN", "TELEGUN_GRENADE", "TELEGUN_LASER",
-                  "WEAPON_HAMMER", "WEAPON_GUN", "WEAPON_SHOTGUN", "WEAPON_GRENADE", "WEAPON_LASER", "WEAPON_NINJA"]
+                  "WEAPON_HAMMER", "WEAPON_GUN", "WEAPON_SHOTGUN", "WEAPON_GRENADE", "WEAPON_LASER", "WEAPON_NINJA",
+                  "MOVEMENTS_DISABLED", "IN_FREEZE", "PRACTICE_MODE", "LOCK_MODE", "TEAM0_MODE", "INVINCIBLE"]
 GameInfoFlags = [
 	"TIMESCORE", "GAMETYPE_RACE", "GAMETYPE_FASTCAP", "GAMETYPE_FNG",
 	"GAMETYPE_DDRACE", "GAMETYPE_DDNET", "GAMETYPE_BLOCK_WORLDS",
@@ -24,18 +25,29 @@ GameInfoFlags = [
 	# Full, use GameInfoFlags2 for more flags
 ]
 GameInfoFlags2 = [
-	"ALLOW_X_SKINS", "GAMETYPE_CITY", "GAMETYPE_FDDRACE", "ENTITIES_FDDRACE",
+	"ALLOW_X_SKINS", "GAMETYPE_CITY", "GAMETYPE_FDDRACE", "ENTITIES_FDDRACE", "HUD_HEALTH_ARMOR", "HUD_AMMO",
+	"HUD_DDRACE", "NO_WEAK_HOOK", "NO_SKIN_CHANGE_FOR_FROZEN", "DDRACE_TEAM"
 ]
+
 ExPlayerFlags = ["AFK", "PAUSED", "SPEC"]
 ProjectileFlags = ["CLIENTID_BIT{}".format(i) for i in range(8)] + [
 	"NO_OWNER", "IS_DDNET", "BOUNCE_HORIZONTAL", "BOUNCE_VERTICAL",
 	"EXPLOSIVE", "FREEZE",
 ]
+LaserFlags = [
+	"NO_PREDICT",
+]
+
+LaserTypes = ["RIFLE", "SHOTGUN", "DOOR", "FREEZE", "DRAGGER", "GUN", "PLASMA"]
+DraggerTypes = ["WEAK", "WEAK_NW", "NORMAL", "NORMAL_NW", "STRONG", "STRONG_NW"]
+GunTypes = ["UNFREEZE", "EXPLOSIVE", "FREEZE", "EXPFREEZE"]
 
 Emoticons = ["OOP", "EXCLAMATION", "HEARTS", "DROP", "DOTDOT", "MUSIC", "SORRY", "GHOST", "SUSHI", "SPLATTEE", "DEVILTEE", "ZOMG", "ZZZ", "WTF", "EYES", "QUESTION"]
 
-Powerups = ["HEALTH", "ARMOR", "WEAPON", "NINJA"]
+Powerups = ["HEALTH", "ARMOR", "WEAPON", "NINJA", "ARMOR_SHOTGUN", "ARMOR_GRENADE", "ARMOR_NINJA", "ARMOR_LASER"]
 Authed = ["NO", "HELPER", "MOD", "ADMIN"]
+EntityClasses = ["PROJECTILE", "DOOR", "DRAGGER_WEAK", "DRAGGER_NORMAL", "DRAGGER_STRONG", "GUN_NORMAL", "GUN_EXPLOSIVE", "GUN_FREEZE", "GUN_UNFREEZE", "LIGHT", "PICKUP"]
+#Teams = ["ALL", "SPECTATORS", "RED", "BLUE", "WHISPER_SEND", "WHISPER_RECV"]
 
 RawHeader = '''
 
@@ -77,6 +89,11 @@ Enums = [
 	Enum("POWERUP", Powerups),
 	Enum("EMOTICON", Emoticons),
 	Enum("AUTHED", Authed),
+    Enum("ENTITYCLASS", EntityClasses),
+	Enum("LASERTYPE", LaserTypes),
+	Enum("LASERDRAGGERTYPE", DraggerTypes),
+	Enum("LASERGUNTYPE", GunTypes),
+#	Enum("TEAM", Teams, -2),
 ]
 
 Flags = [
@@ -88,6 +105,7 @@ Flags = [
 	Flags("GAMEINFOFLAG2", GameInfoFlags2),
 	Flags("EXPLAYERFLAG", ExPlayerFlags),
 	Flags("PROJECTILEFLAG", ProjectileFlags),
+    Flags("LASERFLAG", LaserFlags),
 ]
 
 Objects = [
@@ -239,6 +257,16 @@ Objects = [
 		NetIntRange("m_Jumps", 0, 255),
 		NetIntAny("m_TeleCheckpoint"),
 		NetIntRange("m_StrongWeakID", 0, 'MAX_CLIENTS-1'),
+
+		# New data fields for jump display, freeze bar and ninja bar
+		# Default values indicate that these values should not be used
+		NetIntRange("m_JumpedTotal", -1, 255),
+		NetIntRange("m_NinjaActivationTick", -1, "max_int"),
+		NetIntRange("m_FreezeStart", -1, "max_int"),
+		# New data fields for improved target accuracy
+		NetIntAny("m_TargetX"),
+		NetIntAny("m_TargetY"),
+        NetIntRange("m_TuneZoneOverride", -1, 255),
 	]),
 
 	NetObjectEx("DDNetPlayer", "player@netobj.ddnet.tw", [
@@ -254,6 +282,28 @@ Objects = [
 
 	# The code assumes that this has the same in-memory representation as
 	# the Projectile net object.
+    #NetObjectEx("DDRaceProjectile", "projectile@netobj.ddnet.tw", [
+	#	NetIntAny("m_X"),
+	#	NetIntAny("m_Y"),
+	#	NetIntAny("m_Angle"),
+	#	NetIntAny("m_Data"),
+	#	NetIntRange("m_Type", 0, 'NUM_WEAPONS-1'),
+	#	NetTick("m_StartTick"),
+	#]),
+
+	NetObjectEx("DDNetLaser", "laser@netobj.ddnet.tw", [
+		NetIntAny("m_ToX"),
+		NetIntAny("m_ToY"),
+		NetIntAny("m_FromX"),
+		NetIntAny("m_FromY"),
+		NetTick("m_StartTick"),
+		NetIntRange("m_Owner", -1, 'MAX_CLIENTS-1'),
+		NetIntAny("m_Type"),
+		NetIntAny("m_SwitchNumber"),
+		NetIntAny("m_Subtype"),
+		NetIntAny("m_Flags"),
+	]),
+
 	NetObjectEx("DDNetProjectile", "projectile@netobj.ddnet.tw", [
 		NetIntAny("m_X"),
 		NetIntAny("m_Y"),
@@ -261,6 +311,22 @@ Objects = [
 		NetIntAny("m_Data"),
 		NetIntRange("m_Type", 0, 'NUM_WEAPONS-1'),
 		NetTick("m_StartTick"),
+	]),
+    
+	NetObjectEx("DDNetPickup", "pickup@netobj.ddnet.tw", [
+		NetIntAny("m_X"),
+		NetIntAny("m_Y"),
+		NetIntRange("m_Type", 0, 'max_int'),
+		NetIntRange("m_Subtype", 0, 'max_int'),
+		NetIntAny("m_SwitchNumber"),
+	]),
+
+	NetObjectEx("DDNetSpectatorInfo", "spectator-info@netobj.ddnet.org", [
+		NetBool("m_HasCameraInfo"),
+		NetIntRange("m_Zoom", 0, 'max_int'),
+		NetIntRange("m_Deadzone", 0, 'max_int'),
+		NetIntRange("m_FollowFactor", 0, 'max_int'),
+		NetIntRange("m_SpectatorCount", 0, 'MAX_CLIENTS-1'),
 	]),
 
 	## Events
@@ -290,7 +356,7 @@ Objects = [
 	NetEvent("DamageInd:Common", [
 		NetIntAny("m_Angle"),
 	]),
-
+	
 	NetObjectEx("MyOwnEvent", "my-own-event@heinrich5991.de", [
 		NetIntAny("m_Test"),
 	]),
