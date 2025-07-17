@@ -479,7 +479,7 @@ void CCharacter::TickDefered()
 	// apply drag velocity when the player is not firing ninja
 	// and set it back to 0 for the next tick
 	CWeapon *pCurrentWeapon = CurrentWeapon();
-	if(pCurrentWeapon && !pCurrentWeapon->IgnoreHookDrag())
+	if(!pCurrentWeapon || !pCurrentWeapon->IgnoreHookDrag())
 		m_Core.AddDragVelocity();
 	m_Core.ResetDragVelocity();
 
