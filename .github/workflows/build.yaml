@@ -1,0 +1,54 @@
+name: Build
+
+on: [push]
+
+jobs:
+  build-cmake:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        include:
+        - os: ubuntu-latest
+          executable-file: DDNet-Server
+          cmake-args: -G Ninja
+        - os: windows-latest
+          executable-file: DDNet-Server.exe
+          cmake-args: -A x64
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Prepare Linux
+      if: contains(matrix.os, 'ubuntu')
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install build-essential ninja-build python3 libsqlite3-dev libcurl4-openssl-dev libpnglite-dev zlib1g-dev -y
+
+    - name: Build in release mode
+      run: |
+        mkdir release
+        cd release
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG=. -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE=. ${{ matrix.cmake-args }}
+        cmake --build . --config Release --target DDNet-Server -j 4
+        cp ../room_config ./ -r
+
+    - name: Test release
+      run:  |
+        cd release
+        ./${{ matrix.executable-file }} shutdown
+
+#    - name: Upload ${{ matrix.os }} Package Artifacts
+#      uses: actions/upload-artifact@v4
+#      with:
+#        name: ddnetpvp-${{ matrix.os }}
+#        path: release/
+
+    - name: Upload ${{ matrix.os }} Executable Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ddnetpvp-${{ matrix.os }}-exec
+        path: release/${{ matrix.executable-file }}
