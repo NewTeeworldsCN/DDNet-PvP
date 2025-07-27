@@ -146,6 +146,9 @@ private:
 	int m_Health;
 	int m_Armor;
 
+	int m_MaxHealth;
+	int m_MaxArmor;
+
 	// the player core for the physics
 	CCharacterCore m_Core;
 
@@ -255,8 +258,16 @@ public:
 	int GetActiveWeapon() { return m_ActiveWeaponSlot; };
 	void SetActiveWeapon(int ActiveWeap) { m_ActiveWeaponSlot = ActiveWeap; };
 	void SetLastAction(int LastAction) { m_LastAction = LastAction; };
+	int GetHealth() { return m_Health; };
+	void SetHealth(int Health) { m_Health = Health; };
+	int GetMaxHealth() { return m_MaxHealth; };
+	void SetMaxHealth(int MaxHealth) { m_MaxHealth = MaxHealth; };
+	int GetSnapHealth() { return m_MaxHealth > 10 ? (m_Health * 10) / m_MaxHealth : m_Health; }
 	int GetArmor() { return m_Armor; };
 	void SetArmor(int Armor) { m_Armor = Armor; };
+	int GetMaxArmor() { return m_MaxArmor; };
+	void SetMaxArmor(int MaxArmor) { m_MaxArmor = MaxArmor; };
+	int GetSnapArmor() { return m_MaxArmor > 10 ? (m_Armor * 10) / m_MaxArmor : m_Armor; }
 	CCharacterCore GetCore() { return m_Core; };
 	void SetCore(CCharacterCore Core) { m_Core = Core; };
 	CCharacterCore *Core() { return &m_Core; };
