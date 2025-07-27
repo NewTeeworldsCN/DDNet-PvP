@@ -355,7 +355,7 @@ else()
   set(MYSQL_LIBRARIES)
 endif()
 find_package(Pnglite)
-find_package(PythonInterp 3)
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
 find_package(SQLite3)
 if(UNIX)
   # Use -pthread instead of -lpthread to draw dependencies other than libpthread
@@ -430,14 +430,14 @@ if(MYSQL)
 endif()
 show_dependency_status("OpenSSL Crypto" CRYPTO)
 show_dependency_status("Pnglite" PNGLITE)
-show_dependency_status("PythonInterp" PYTHONINTERP)
+show_dependency_status("Python3" PYTHON3)
 show_dependency_status("SQLite3" SQLite3)
 show_dependency_status("Zlib" ZLIB)
 if(WEBSOCKETS)
   show_dependency_status("Websockets" WEBSOCKETS)
 endif()
 
-if(NOT(PYTHONINTERP_FOUND))
+if(NOT(PYTHON3_FOUND))
   message(SEND_ERROR "You must install Python to compile DDNet")
 endif()
 if(NOT(SQLite3_FOUND))
@@ -634,7 +634,7 @@ file(COPY ${COPY_FILES} DESTINATION .)
 
 function(generate_source output_file script_parameter)
   add_custom_command(OUTPUT ${output_file}
-    COMMAND ${PYTHON_EXECUTABLE} datasrc/compile.py ${script_parameter}
+    COMMAND ${Python3_EXECUTABLE} datasrc/compile.py ${script_parameter}
       > "${PROJECT_BINARY_DIR}/${output_file}"
     DEPENDS
       datasrc/compile.py
@@ -647,7 +647,7 @@ endfunction()
 
 function(generate_source7 output_file script_parameter)
   add_custom_command(OUTPUT ${output_file}
-    COMMAND ${PYTHON_EXECUTABLE} -m datasrc.seven.compile ${script_parameter}
+    COMMAND ${Python3_EXECUTABLE} -m datasrc.seven.compile ${script_parameter}
       > "${PROJECT_BINARY_DIR}/${output_file}"
     DEPENDS
       datasrc/seven/compile.py
@@ -660,7 +660,7 @@ endfunction()
 
 function(generate_maps output_file)
   add_custom_command(OUTPUT ${output_file}
-    COMMAND ${PYTHON_EXECUTABLE} datasrc/crosscompile.py
+    COMMAND ${Python3_EXECUTABLE} datasrc/crosscompile.py
       > "${PROJECT_BINARY_DIR}/${output_file}"
     DEPENDS
       datasrc/compile.py
@@ -690,7 +690,7 @@ if(NOT PROJECT_GIT_DIR_ERROR)
   )
 endif()
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src/game/generated/git_revision.cpp
-  COMMAND ${PYTHON_EXECUTABLE}
+  COMMAND ${Python3_EXECUTABLE}
     scripts/git_revision.py
     > ${PROJECT_BINARY_DIR}/src/game/generated/git_revision.cpp
   WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
@@ -709,7 +709,7 @@ generate_source7("src/game/generated/protocol7.h" "network_header")
 generate_maps("src/game/generated/protocolglue.h")
 
 add_custom_command(OUTPUT "src/game/generated/wordlist.h"
-  COMMAND ${PYTHON_EXECUTABLE} scripts/wordlist.py > ${PROJECT_BINARY_DIR}/src/game/generated/wordlist.h
+  COMMAND ${Python3_EXECUTABLE} scripts/wordlist.py > ${PROJECT_BINARY_DIR}/src/game/generated/wordlist.h
   WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
   DEPENDS
     scripts/wordlist.py
@@ -1139,7 +1139,6 @@ if(GTEST_FOUND OR DOWNLOAD_GTEST)
     packer.cpp
     prng.cpp
     secure_random.cpp
-    sorted_array.cpp
     str.cpp
     strip_path_and_extension.cpp
     test.cpp
