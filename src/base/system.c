@@ -47,7 +47,6 @@
 #endif
 
 #elif defined(CONF_FAMILY_WINDOWS)
-#define WIN32_LEAN_AND_MEAN
 #undef _WIN32_WINNT
 #define _WIN32_WINNT 0x0501 /* required for mingw to get getaddrinfo to work */
 #include <windows.h>
@@ -2275,6 +2274,22 @@ int fs_rename(const char *oldname, const char *newname)
 #endif
 	return 0;
 }
+
+#if defined(CONF_FAMILY_WINDOWS)
+static inline time_t filetime_to_unixtime(LPFILETIME filetime)
+{
+    time_t t;
+    ULARGE_INTEGER li;
+    li.LowPart = filetime->dwLowDateTime;
+    li.HighPart = filetime->dwHighDateTime;
+
+    li.QuadPart /= 10000000; // 100ns to 1s
+    li.QuadPart -= 11644473600LL; // Windows epoch is in the past
+
+    t = li.QuadPart;
+    return t == (time_t)li.QuadPart ? t : (time_t)-1;
+}
+#endif
 
 int fs_file_time(const char *name, time_t *created, time_t *modified)
 {
