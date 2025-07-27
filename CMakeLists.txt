@@ -152,12 +152,12 @@ endif()
 
 if(NOT MSVC AND NOT HAIKU)
   if(CMAKE_VERSION VERSION_LESS 3.1 OR TARGET_OS STREQUAL "mac")
-    check_cxx_compiler_flag(-std=gnu++11 FLAG_SUPPORTED_std_gnu__11)
-    if(FLAG_SUPPORTED_std_gnu__11)
+    check_cxx_compiler_flag(-std=gnu++17 FLAG_SUPPORTED_std_gnu__17)
+    if(FLAG_SUPPORTED_std_gnu__17)
       if(CMAKE_CXX_FLAGS)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++17")
       else()
-        set(CMAKE_CXX_FLAGS -std=gnu++11)
+        set(CMAKE_CXX_FLAGS -std=gnu++17)
       endif()
     endif()
   endif()
@@ -730,6 +730,7 @@ set_src(BASE GLOB_RECURSE src/base
   hash_ctxt.h
   hash_libtomcrypt.c
   hash_openssl.c
+  lock.h
   math.h
   system.c
   system.h
@@ -754,6 +755,7 @@ set_src(ENGINE_INTERFACE GLOB src/engine
   demo.h
   engine.h
   graphics.h
+  http.h
   kernel.h
   map.h
   masterserver.h
@@ -783,6 +785,8 @@ set_src(ENGINE_SHARED GLOB src/engine/shared
   filecollection.cpp
   filecollection.h
   global_uuid_manager.cpp
+  http.cpp
+  http.h
   huffman.cpp
   huffman.h
   image_manipulation.cpp
@@ -791,12 +795,15 @@ set_src(ENGINE_SHARED GLOB src/engine/shared
   jobs.h
   json.cpp
   json.h
+  jsonparser.cpp
+  jsonparser.h
+  jsonwriter.cpp
+  jsonwriter.h
   kernel.cpp
   linereader.cpp
   linereader.h
   map.cpp
   map.h
-  masterserver.cpp
   memheap.cpp
   memheap.h
   message.h
@@ -838,8 +845,6 @@ set_src(GAME_SHARED GLOB src/game
   gamecore.h
   layers.cpp
   layers.h
-  localization.cpp
-  localization.h
   mapitems.cpp
   mapitems.h
   mapitems_ex.cpp
@@ -886,6 +891,7 @@ set(LIBS
   ${CRYPTO_LIBRARIES}
   ${WEBSOCKETS_LIBRARIES}
   ${ZLIB_LIBRARIES}
+  ${CURL_LIBRARIES}
   ${PLATFORM_LIBS}
   # Add pthreads (on non-Windows) at the end, so that other libraries can depend
   # on it.
@@ -1484,7 +1490,7 @@ endforeach()
 
 foreach(target ${TARGETS_OWN})
   if((CMAKE_VERSION VERSION_GREATER 3.1 OR CMAKE_VERSION VERSION_EQUAL 3.1) AND NOT TARGET_OS STREQUAL "mac")
-    set_property(TARGET ${target} PROPERTY CXX_STANDARD 11)
+    set_property(TARGET ${target} PROPERTY CXX_STANDARD 17)
     set_property(TARGET ${target} PROPERTY CXX_STANDARD_REQUIRED ON)
   endif()
 
@@ -1493,13 +1499,24 @@ foreach(target ${TARGETS_OWN})
     target_compile_options(${target} PRIVATE /wd4267) # Possible loss of data (size_t - int on win64).
     target_compile_options(${target} PRIVATE /wd4800) # Implicit conversion of int to bool.
   endif()
+  if(TARGET_OS STREQUAL "windows")
+  # See https://learn.microsoft.com/en-us/windows/win32/winprog/using-the-windows-headers
+  target_compile_definitions(${target} PRIVATE NOMINMAX) # windows.h shouldn't define min/max macros
+  target_compile_definitions(${target} PRIVATE WIN32_LEAN_AND_MEAN) # windows.h shouldn't define the name IStorage
+  # 0x0501 (Windows XP) is required for mingw to get getaddrinfo to work
+  # 0x0600 (Windows Vista) is required to use RegGetValueW and RegDeleteTreeW
+  target_compile_definitions(${target} PRIVATE NTDDI_VERSION=0x06000000) # Minimum OS version (new macro, since Vista)
+  target_compile_definitions(${target} PRIVATE _WIN32_WINNT=0x0600) # Minimum OS version (old macro, both must be defined)
+  #target_compile_definitions(${target} PRIVATE UNICODE) # Windows headers
+  #target_compile_definitions(${target} PRIVATE _UNICODE) # C-runtime
+  endif()
   if(OUR_FLAGS_OWN)
     target_compile_options(${target} PRIVATE ${OUR_FLAGS_OWN})
   endif()
   target_include_directories(${target} PRIVATE ${PROJECT_BINARY_DIR}/src)
   target_include_directories(${target} PRIVATE src)
   target_compile_definitions(${target} PRIVATE $<$<CONFIG:Debug>:CONF_DEBUG>)
-  target_include_directories(${target} PRIVATE ${SQLite3_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS})
+  target_include_directories(${target} PRIVATE ${CURL_INCLUDE_DIRS} ${SQLite3_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS})
   if(CRYPTO_FOUND)
     target_compile_definitions(${target} PRIVATE CONF_OPENSSL)
     target_include_directories(${target} PRIVATE ${CRYPTO_INCLUDE_DIRS})

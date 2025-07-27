@@ -99,4 +99,6 @@ public:
 
 extern IEngineMasterServer *CreateEngineMasterServer();
 
+static const unsigned char SERVERBROWSE_CHALLENGE[] = {255, 255, 255, 255, 'c', 'h', 'a', 'l'};
+
 #endif

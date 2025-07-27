@@ -16,6 +16,7 @@
 #include <engine/shared/econ.h>
 #include <engine/shared/fifo.h>
 #include <engine/shared/netban.h>
+#include <engine/shared/http.h>
 #include <engine/shared/network.h>
 #include <engine/shared/protocol.h>
 #include <engine/shared/snapshot.h>
@@ -92,6 +93,8 @@ class CServer : public IServer
 	class CConfig *m_pConfig;
 	class IConsole *m_pConsole;
 	class IStorage *m_pStorage;
+	class IRegister *m_pRegister;
+
 	class IEngineAntibot *m_pAntibot;
 
 #if defined(CONF_UPNP)
@@ -181,6 +184,11 @@ public:
 		bool m_HasPersistentData;
 		void *m_pPersistentData;
 
+		bool IncludedInServerInfo() const
+		{
+			return m_State != STATE_EMPTY;
+		}
+
 		void Reset();
 
 		// DDRace
@@ -212,6 +220,7 @@ public:
 	CFifo m_Fifo;
 #endif
 	CServerBan m_ServerBan;
+	CHttp m_Http;
 
 	IEngineMap *m_pMap;
 
@@ -249,14 +258,14 @@ public:
 	unsigned int m_aCurrentMapSize[2];
 
 	CDemoRecorder m_aDemoRecorder[MAX_CLIENTS + 1];
-	CRegister m_Register;
-	CRegister m_RegSixup;
 	CAuthManager m_AuthManager;
 
 	int m_RconRestrict;
 
 	int64 m_ServerInfoFirstRequest;
 	int m_ServerInfoNumRequests;
+	int64_t m_ServerInfoRequestLogTick;
+	int m_ServerInfoRequestLogRecords;
 
 	char m_aErrorShutdownReason[128];
 
@@ -354,9 +363,8 @@ public:
 	CCache m_aSixupServerInfoCache[2];
 	bool m_ServerInfoNeedsUpdate;
 
+	void UpdateRegisterServerInfo();
 	void ExpireServerInfo();
-	void CacheServerInfo(CCache *pCache, int Type, bool SendClients);
-	void CacheServerInfoSixup(CCache *pCache, bool SendClients);
 	void SendServerInfo(const NETADDR *pAddr, int Token, int Type, bool SendClients);
 	void GetServerInfoSixup(CPacker *pPacker, int Token, bool SendClients);
 	bool RateLimitServerInfoConnless();
@@ -374,7 +382,6 @@ public:
 	void StopRecord(int ClientID);
 	bool IsRecording(int ClientID);
 
-	void InitRegister(CNetServer *pNetServer, IEngineMasterServer *pMasterServer, CConfig *pConfig, IConsole *pConsole);
 	int Run();
 
 	static void ConTestingCommands(IConsole::IResult *pResult, void *pUser);

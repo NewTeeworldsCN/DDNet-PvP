@@ -422,6 +422,8 @@ public:
 	static int64 ms_TeamMask[3];
 	static int64 ms_SpectatorMask[MAX_CLIENTS];
 	static int64 ms_TeamSpectatorMask[2];
+
+	void OnUpdatePlayerServerInfo(class CJsonStringWriter *pJSonWriter, int Id) override;
 };
 
 inline int64 CmaskAll() { return -1LL; }

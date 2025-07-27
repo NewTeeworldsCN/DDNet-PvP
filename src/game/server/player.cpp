@@ -895,6 +895,8 @@ void CPlayer::SetTeam(int Team)
 
 		Server()->SendPackMsg(&Msg, MSGFLAG_VITAL | MSGFLAG_NORECORD, i);
 	}
+
+	Server()->ExpireServerInfo();
 }
 
 void CPlayer::SendCurrentTeamInfo()

@@ -314,6 +314,8 @@ public:
 
 	// PvP
 	virtual bool CheckDisruptiveLeave(int ClientID) = 0;
+
+	virtual void OnUpdatePlayerServerInfo(class CJsonStringWriter *pJSonWriter, int Id) = 0;
 };
 
 extern IGameServer *CreateGameServer();

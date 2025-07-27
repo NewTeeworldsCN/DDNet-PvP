@@ -1,8 +1,5 @@
 /* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
-
-#define _WIN32_WINNT 0x0501
-
 #include "server.h"
 
 #include <base/math.h>
@@ -23,6 +20,7 @@
 #include <engine/shared/econ.h>
 #include <engine/shared/fifo.h>
 #include <engine/shared/filecollection.h>
+#include <engine/shared/jsonwriter.h>
 #include <engine/shared/netban.h>
 #include <engine/shared/network.h>
 #include <engine/shared/packer.h>
@@ -39,10 +37,12 @@
 
 #include "databases/connection.h"
 #include "databases/connection_pool.h"
+// DDNet
+#include <engine/shared/uuid_manager.h>
+
 #include "register.h"
 
 #if defined(CONF_FAMILY_WINDOWS)
-#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif
 
@@ -284,8 +284,7 @@ void CServer::CClient::Reset()
 	m_DDNetVersionSettled = false;
 }
 
-CServer::CServer() :
-	m_Register(false), m_RegSixup(true)
+CServer::CServer()
 {
 	for(int i = 0; i < MAX_CLIENTS; i++)
 		m_aDemoRecorder[i] = CDemoRecorder(&m_SnapshotDelta, true);
@@ -1826,13 +1825,11 @@ void CServer::CCache::Clear()
 	m_Cache.clear();
 }
 
-void CServer::CacheServerInfo(CCache *pCache, int Type, bool SendClients)
+void CServer::SendServerInfo(const NETADDR *pAddr, int Token, int Type, bool SendClients)
 {
-	pCache->Clear();
-
 	// One chance to improve the protocol!
 	CPacker p;
-	char aBuf[128];
+	char aBuf[256];
 
 	// count the players
 	int PlayerCount = 0, ClientCount = 0;
@@ -1857,7 +1854,21 @@ void CServer::CacheServerInfo(CCache *pCache, int Type, bool SendClients)
 		(p).AddString(aBuf, 0); \
 	} while(0)
 
+	switch(Type)
+	{
+	case SERVERINFO_EXTENDED: ADD_RAW(p, SERVERBROWSE_INFO_EXTENDED); break;
+	case SERVERINFO_64_LEGACY: ADD_RAW(p, SERVERBROWSE_INFO_64_LEGACY); break;
+	case SERVERINFO_VANILLA: ADD_RAW(p, SERVERBROWSE_INFO); break;
+	case SERVERINFO_INGAME: ADD_RAW(p, SERVERBROWSE_INFO); break;
+	default: dbg_assert(false, "unknown serverinfo type");
+	}
+
+	ADD_INT(p, Token);
+
 	p.AddString(GameServer()->Version(), 32);
+
+	const char *pMapName = GetMapName();
+
 	if(Type != SERVERINFO_VANILLA)
 	{
 		p.AddString(g_Config.m_SvName, 256);
@@ -1870,11 +1881,12 @@ void CServer::CacheServerInfo(CCache *pCache, int Type, bool SendClients)
 		}
 		else
 		{
-			str_format(aBuf, sizeof(aBuf), "%s [%d/%d]", g_Config.m_SvName, ClientCount, m_NetServer.MaxClients());
+			const int MaxClients = maximum(ClientCount, m_NetServer.MaxClients() - g_Config.m_SvReservedSlots);
+			str_format(aBuf, sizeof(aBuf), "%s [%d/%d]", g_Config.m_SvName, ClientCount, MaxClients);
 			p.AddString(aBuf, 64);
 		}
 	}
-	p.AddString(GetMapName(), 32);
+	p.AddString(pMapName, 32);
 
 	if(Type == SERVERINFO_EXTENDED)
 	{
@@ -1907,9 +1919,9 @@ void CServer::CacheServerInfo(CCache *pCache, int Type, bool SendClients)
 	}
 
 	ADD_INT(p, PlayerCount); // num players
-	ADD_INT(p, minimum(MaxClientsProtocol, maximum(MaxClients - g_Config.m_SvReservedSlots, PlayerCount))); // max players
+	ADD_INT(p, minimum(MaxClientsProtocol, maximum(MaxClients, PlayerCount))); // max players
 	ADD_INT(p, ClientCount); // num clients
-	ADD_INT(p, minimum(MaxClientsProtocol, maximum(MaxClients - g_Config.m_SvReservedSlots, ClientCount))); // max clients
+	ADD_INT(p, minimum(MaxClientsProtocol, maximum(MaxClients, ClientCount))); // max clients
 
 	if(Type == SERVERINFO_EXTENDED)
 		p.AddString("", 0); // extra info, reserved
@@ -1918,31 +1930,37 @@ void CServer::CacheServerInfo(CCache *pCache, int Type, bool SendClients)
 	int PrefixSize = p.Size();
 
 	CPacker q;
-	int ChunksStored = 0;
-	int PlayersStored = 0;
+	CNetChunk Packet;
+	int PacketsSent = 0;
+	int PlayersSent = 0;
+	Packet.m_ClientID = -1;
+	Packet.m_Address = *pAddr;
+	Packet.m_Flags = NETSENDFLAG_CONNLESS;
 
-#define SAVE(size) \
-	do \
-	{ \
-		pCache->AddChunk(q.Data(), size); \
-		ChunksStored++; \
-	} while(0)
+	#define SEND(size) \
+		do \
+		{ \
+			Packet.m_pData = q.Data(); \
+			Packet.m_DataSize = size; \
+			m_NetServer.Send(&Packet); \
+			PacketsSent++; \
+		} while(0)
 
-#define RESET() \
-	do \
-	{ \
-		q.Reset(); \
-		q.AddRaw(pPrefix, PrefixSize); \
-	} while(0)
+	#define RESET() \
+		do \
+		{ \
+			q.Reset(); \
+			q.AddRaw(pPrefix, PrefixSize); \
+		} while(0)
 
 	RESET();
 
 	if(Type == SERVERINFO_64_LEGACY)
-		q.AddInt(PlayersStored); // offset
+		q.AddInt(PlayersSent); // offset
 
 	if(!SendClients)
 	{
-		SAVE(q.Size());
+		SEND(q.Size());
 		return;
 	}
 
@@ -1977,9 +1995,9 @@ void CServer::CacheServerInfo(CCache *pCache, int Type, bool SendClients)
 					break;
 
 				// Otherwise we're SERVERINFO_64_LEGACY.
-				SAVE(q.Size());
+				SEND(q.Size());
 				RESET();
-				q.AddInt(PlayersStored); // offset
+				q.AddInt(PlayersSent); // offset
 				Remaining = 24;
 			}
 			if(Remaining > 0)
@@ -2004,138 +2022,22 @@ void CServer::CacheServerInfo(CCache *pCache, int Type, bool SendClients)
 				{
 					// Retry current player.
 					i--;
-					SAVE(PreviousSize);
+					SEND(PreviousSize);
 					RESET();
-					ADD_INT(q, ChunksStored);
+					ADD_INT(q, PlayersSent);
 					q.AddString("", 0); // extra info, reserved
 					continue;
 				}
 			}
-			PlayersStored++;
+			PlayersSent++;
 		}
 	}
 
-	SAVE(q.Size());
-#undef SAVE
-#undef RESET
-#undef ADD_RAW
-#undef ADD_INT
-}
-
-void CServer::CacheServerInfoSixup(CCache *pCache, bool SendClients)
-{
-	pCache->Clear();
-
-	CPacker Packer;
-	Packer.Reset();
-
-	// Could be moved to a separate function and cached
-	// count the players
-	int PlayerCount = 0, ClientCount = 0;
-	for(int i = 0; i < MAX_CLIENTS; i++)
-	{
-		if(m_aClients[i].m_State != CClient::STATE_EMPTY)
-		{
-			if(GameServer()->IsClientPlayer(i))
-				PlayerCount++;
-
-			ClientCount++;
-		}
-	}
-
-	char aVersion[32];
-	str_format(aVersion, sizeof(aVersion), "0.7↔%s", GameServer()->Version());
-	Packer.AddString(aVersion, 32);
-	Packer.AddString(g_Config.m_SvName, 64);
-	Packer.AddString(g_Config.m_SvHostname, 128);
-	Packer.AddString(GetMapName(), 32);
-
-	// gametype
-	Packer.AddString(GameServer()->GameType(), 16);
-
-	// flags
-	int Flags = SERVER_FLAG_TIMESCORE;
-	if(g_Config.m_Password[0]) // password set
-		Flags |= SERVER_FLAG_PASSWORD;
-	Packer.AddInt(Flags);
-
-	int MaxClients = m_NetServer.MaxClients();
-	Packer.AddInt(g_Config.m_SvSkillLevel); // server skill level
-	Packer.AddInt(PlayerCount); // num players
-	Packer.AddInt(maximum(MaxClients - g_Config.m_SvReservedSlots, PlayerCount)); // max players
-	Packer.AddInt(ClientCount); // num clients
-	Packer.AddInt(maximum(MaxClients - g_Config.m_SvReservedSlots, ClientCount)); // max clients
-
-	if(SendClients)
-	{
-		for(int i = 0; i < MAX_CLIENTS; i++)
-		{
-			if(m_aClients[i].m_State != CClient::STATE_EMPTY)
-			{
-				Packer.AddString(ClientName(i), MAX_NAME_LENGTH); // client name
-				Packer.AddString(ClientClan(i), MAX_CLAN_LENGTH); // client clan
-				Packer.AddInt(m_aClients[i].m_Country); // client country
-				Packer.AddInt(m_aClients[i].m_Score); // client score
-				Packer.AddInt(GameServer()->IsClientPlayer(i) ? 0 : 1); // flag spectator=1, bot=2 (player=0)
-			}
-		}
-	}
-
-	pCache->AddChunk(Packer.Data(), Packer.Size());
-}
-
-void CServer::SendServerInfo(const NETADDR *pAddr, int Token, int Type, bool SendClients)
-{
-	CPacker p;
-	char aBuf[128];
-	p.Reset();
-
-	CCache *pCache = &m_aServerInfoCache[GetCacheIndex(Type, SendClients)];
-
-#define ADD_RAW(p, x) (p).AddRaw(x, sizeof(x))
-#define ADD_INT(p, x) \
-	do \
-	{ \
-		str_format(aBuf, sizeof(aBuf), "%d", x); \
-		(p).AddString(aBuf, 0); \
-	} while(0)
-
-	CNetChunk Packet;
-	Packet.m_ClientID = -1;
-	Packet.m_Address = *pAddr;
-	Packet.m_Flags = NETSENDFLAG_CONNLESS;
-
-	for(const auto &Chunk : pCache->m_Cache)
-	{
-		p.Reset();
-		if(Type == SERVERINFO_EXTENDED)
-		{
-			if(&Chunk == &pCache->m_Cache.front())
-				p.AddRaw(SERVERBROWSE_INFO_EXTENDED, sizeof(SERVERBROWSE_INFO_EXTENDED));
-			else
-				p.AddRaw(SERVERBROWSE_INFO_EXTENDED_MORE, sizeof(SERVERBROWSE_INFO_EXTENDED_MORE));
-			ADD_INT(p, Token);
-		}
-		else if(Type == SERVERINFO_64_LEGACY)
-		{
-			ADD_RAW(p, SERVERBROWSE_INFO_64_LEGACY);
-			ADD_INT(p, Token);
-		}
-		else if(Type == SERVERINFO_VANILLA || Type == SERVERINFO_INGAME)
-		{
-			ADD_RAW(p, SERVERBROWSE_INFO);
-			ADD_INT(p, Token);
-		}
-		else
-		{
-			dbg_assert(false, "unknown serverinfo type");
-		}
-
-		p.AddRaw(Chunk.m_aData, Chunk.m_DataSize);
-		Packet.m_pData = p.Data();
-		Packet.m_DataSize = p.Size();
-		m_NetServer.Send(&Packet);
-	}
+	SEND(q.Size());
+	#undef SEND
+	#undef RESET
+	#undef ADD_RAW
+	#undef ADD_INT
 }
 
 void CServer::GetServerInfoSixup(CPacker *pPacker, int Token, bool SendClients)
@@ -2158,32 +2060,114 @@ void CServer::ExpireServerInfo()
 	m_ServerInfoNeedsUpdate = true;
 }
 
+void CServer::UpdateRegisterServerInfo()
+{
+	// count the players
+	int PlayerCount = 0, ClientCount = 0;
+	for(int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if(m_aClients[i].IncludedInServerInfo())
+		{
+			if(GameServer()->IsClientPlayer(i))
+				PlayerCount++;
+
+			ClientCount++;
+		}
+	}
+
+	int MaxPlayers = std::max(m_NetServer.MaxClients(), PlayerCount);
+	int MaxClients = std::max(m_NetServer.MaxClients(), ClientCount);
+	char aMapSha256[SHA256_MAXSTRSIZE];
+
+	sha256_str(m_aCurrentMapSha256[SIX], aMapSha256, sizeof(aMapSha256));
+
+	CJsonStringWriter JsonWriter;
+
+	JsonWriter.BeginObject();
+	JsonWriter.WriteAttribute("max_clients");
+	JsonWriter.WriteIntValue(MaxClients);
+
+	JsonWriter.WriteAttribute("max_players");
+	JsonWriter.WriteIntValue(MaxPlayers);
+
+	JsonWriter.WriteAttribute("passworded");
+	JsonWriter.WriteBoolValue(g_Config.m_Password[0]);
+
+	JsonWriter.WriteAttribute("game_type");
+	JsonWriter.WriteStrValue(GameServer()->GameType());
+
+	JsonWriter.WriteAttribute("name");
+	JsonWriter.WriteStrValue(g_Config.m_SvName);
+
+	JsonWriter.WriteAttribute("map");
+	JsonWriter.BeginObject();
+	JsonWriter.WriteAttribute("name");
+	JsonWriter.WriteStrValue(GetMapName());
+	JsonWriter.WriteAttribute("sha256");
+	JsonWriter.WriteStrValue(aMapSha256);
+	JsonWriter.WriteAttribute("size");
+	JsonWriter.WriteIntValue(m_aCurrentMapSize[SIX]);
+	JsonWriter.EndObject();
+
+	JsonWriter.WriteAttribute("version");
+	JsonWriter.WriteStrValue(GameServer()->Version());
+
+	JsonWriter.WriteAttribute("client_score_kind");
+	JsonWriter.WriteStrValue("points"); // "points" or "time"
+
+	JsonWriter.WriteAttribute("requires_login");
+	JsonWriter.WriteBoolValue(false);
+
+	JsonWriter.WriteAttribute("clients");
+	JsonWriter.BeginArray();
+
+	for(int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if(m_aClients[i].IncludedInServerInfo())
+		{
+			JsonWriter.BeginObject();
+
+			JsonWriter.WriteAttribute("name");
+			JsonWriter.WriteStrValue(ClientName(i));
+
+			JsonWriter.WriteAttribute("clan");
+			JsonWriter.WriteStrValue(ClientClan(i));
+
+			JsonWriter.WriteAttribute("country");
+			JsonWriter.WriteIntValue(m_aClients[i].m_Country); // ISO 3166-1 numeric
+
+			JsonWriter.WriteAttribute("score");
+			JsonWriter.WriteIntValue(m_aClients[i].m_Score);
+
+			JsonWriter.WriteAttribute("is_player");
+			JsonWriter.WriteBoolValue(GameServer()->IsClientPlayer(i));
+
+			GameServer()->OnUpdatePlayerServerInfo(&JsonWriter, i);
+
+			JsonWriter.EndObject();
+		}
+	}
+
+	JsonWriter.EndArray();
+	JsonWriter.EndObject();
+
+	m_pRegister->OnNewInfo(JsonWriter.GetOutputString().c_str());
+}
+
 void CServer::UpdateServerInfo(bool Resend)
 {
-	if(m_RunServer == UNINITIALIZED)
+	if(!m_pRegister || m_RunServer == false)
 		return;
 
-	for(int i = 0; i < 3; i++)
-		for(int j = 0; j < 2; j++)
-			CacheServerInfo(&m_aServerInfoCache[i * 2 + j], i, j);
-
-	for(int i = 0; i < 2; i++)
-		CacheServerInfoSixup(&m_aSixupServerInfoCache[i], i);
+	UpdateRegisterServerInfo();
 
 	if(Resend)
 	{
-		for(int i = 0; i < MAX_CLIENTS; ++i)
+		for(int i = 0; i < m_NetServer.MaxClients(); ++i)
 		{
 			if(m_aClients[i].m_State != CClient::STATE_EMPTY)
 			{
-				if(!IsSixup(i))
-					SendServerInfo(m_NetServer.ClientAddr(i), -1, SERVERINFO_INGAME, false);
-				else
-				{
-					CMsgPacker Msg(4, true, true); //NETMSG_SERVERINFO //TODO: Import the shared protocol from 7 aswell
-					GetServerInfoSixup(&Msg, -1, false);
-					SendMsg(&Msg, MSGFLAG_VITAL | MSGFLAG_FLUSH, i);
-				}
+				SendServerInfo(m_NetServer.ClientAddr(i), -1, SERVERINFO_INGAME, false);
 			}
 		}
 	}
@@ -2203,66 +2187,35 @@ void CServer::PumpNetwork(bool PacketWaiting)
 		// process packets
 		while(m_NetServer.Recv(&Packet, &ResponseToken))
 		{
-			if(Packet.m_ClientID == -1)
+			if(ResponseToken == NET_SECURITY_TOKEN_UNKNOWN && m_pRegister->OnPacket(&Packet))
+				continue;
+			if(Packet.m_DataSize >= int(sizeof(SERVERBROWSE_GETINFO)) &&
+				mem_comp(Packet.m_pData, SERVERBROWSE_GETINFO, sizeof(SERVERBROWSE_GETINFO)) == 0)
 			{
 				// stateless
-				if(!(Packet.m_Flags & NETSENDFLAG_CONNLESS))
+				int ExtraToken = 0;
+				int Type = -1;
+				if(Packet.m_DataSize >= (int)sizeof(SERVERBROWSE_GETINFO) + 1 &&
+					mem_comp(Packet.m_pData, SERVERBROWSE_GETINFO, sizeof(SERVERBROWSE_GETINFO)) == 0)
 				{
-					m_RegSixup.FeedToken(Packet.m_Address, ResponseToken);
-					continue;
+					if(Packet.m_Flags & NETSENDFLAG_EXTENDED)
+					{
+						Type = SERVERINFO_EXTENDED;
+						ExtraToken = (Packet.m_aExtraData[0] << 8) | Packet.m_aExtraData[1];
+					}
+					else
+						Type = SERVERINFO_VANILLA;
 				}
-
-				if(ResponseToken != NET_SECURITY_TOKEN_UNKNOWN && g_Config.m_SvSixup &&
-					m_RegSixup.RegisterProcessPacket(&Packet, ResponseToken))
-					continue;
-				if(ResponseToken == NET_SECURITY_TOKEN_UNKNOWN && m_Register.RegisterProcessPacket(&Packet))
-					continue;
-
-				{
-					int ExtraToken = 0;
-					int Type = -1;
-					if(Packet.m_DataSize >= (int)sizeof(SERVERBROWSE_GETINFO) + 1 &&
-						mem_comp(Packet.m_pData, SERVERBROWSE_GETINFO, sizeof(SERVERBROWSE_GETINFO)) == 0)
-					{
-						if(Packet.m_Flags & NETSENDFLAG_EXTENDED)
-						{
-							Type = SERVERINFO_EXTENDED;
-							ExtraToken = (Packet.m_aExtraData[0] << 8) | Packet.m_aExtraData[1];
-						}
-						else
-							Type = SERVERINFO_VANILLA;
-					}
-					else if(Packet.m_DataSize >= (int)sizeof(SERVERBROWSE_GETINFO_64_LEGACY) + 1 &&
+				else if(Packet.m_DataSize >= (int)sizeof(SERVERBROWSE_GETINFO_64_LEGACY) + 1 &&
 						mem_comp(Packet.m_pData, SERVERBROWSE_GETINFO_64_LEGACY, sizeof(SERVERBROWSE_GETINFO_64_LEGACY)) == 0)
-					{
-						Type = SERVERINFO_64_LEGACY;
-					}
-					if(Type == SERVERINFO_VANILLA && ResponseToken != NET_SECURITY_TOKEN_UNKNOWN && g_Config.m_SvSixup)
-					{
-						CUnpacker Unpacker;
-						Unpacker.Reset((unsigned char *)Packet.m_pData + sizeof(SERVERBROWSE_GETINFO), Packet.m_DataSize - sizeof(SERVERBROWSE_GETINFO));
-						int SrvBrwsToken = Unpacker.GetInt();
-						if(Unpacker.Error())
-							continue;
-
-						CPacker Packer;
-						CNetChunk Response;
-
-						GetServerInfoSixup(&Packer, SrvBrwsToken, RateLimitServerInfoConnless());
-
-						Response.m_ClientID = -1;
-						Response.m_Address = Packet.m_Address;
-						Response.m_Flags = NETSENDFLAG_CONNLESS;
-						Response.m_pData = Packer.Data();
-						Response.m_DataSize = Packer.Size();
-						m_NetServer.SendConnlessSixup(&Response, ResponseToken);
-					}
-					else if(Type != -1)
-					{
-						int Token = ((unsigned char *)Packet.m_pData)[sizeof(SERVERBROWSE_GETINFO)];
-						Token |= ExtraToken << 8;
-						SendServerInfoConnless(&Packet.m_Address, Token, Type);
-					}
+				{
+					Type = SERVERINFO_64_LEGACY;
+				}
+				if(Type != -1)
+				{
+					int Token = ((unsigned char *)Packet.m_pData)[sizeof(SERVERBROWSE_GETINFO)];
+					Token |= ExtraToken << 8;
+					SendServerInfoConnless(&Packet.m_Address, Token, Type);
 				}
 			}
 			else
@@ -2376,12 +2329,6 @@ int CServer::LoadMap(const char *pMapName)
 	return 1;
 }
 
-void CServer::InitRegister(CNetServer *pNetServer, IEngineMasterServer *pMasterServer, CConfig *pConfig, IConsole *pConsole)
-{
-	m_Register.Init(pNetServer, pMasterServer, pConfig, pConsole);
-	m_RegSixup.Init(pNetServer, pMasterServer, pConfig, pConsole);
-}
-
 int CServer::Run()
 {
 	if(m_RunServer == UNINITIALIZED)
@@ -2458,8 +2405,22 @@ int CServer::Run()
 	m_UPnP.Open(BindAddr);
 #endif
 
+	if(Port == 0)
+		dbg_msg("server", "using port %d", BindAddr.port);
+
+#if defined(CONF_UPNP)
+	m_UPnP.Open(BindAddr);
+#endif
+
 	m_NetServer.SetCallbacks(NewClientCallback, NewClientNoAuthCallback, ClientRejoinCallback, DelClientCallback, ClientCheckDisruptive, this);
 
+	if(!m_Http.Init(std::chrono::seconds{2}, &g_Config))
+	{
+		dbg_msg("server", "Failed to initialize the HTTP client.");
+		return -1;
+	}
+
+	m_pRegister = CreateRegister(&g_Config, m_pConsole, Kernel()->RequestInterface<IEngine>(), &m_Http, g_Config.m_SvPort, NET_SECURITY_TOKEN_UNSUPPORTED);
 	m_Econ.Init(Config(), Console(), &m_ServerBan);
 
 #if defined(CONF_FAMILY_UNIX)
@@ -2481,6 +2442,7 @@ int CServer::Run()
 
 	// process pending commands
 	m_pConsole->StoreCommands(false);
+	m_pRegister->OnConfigChange();
 
 	if(m_AuthManager.IsGenerated())
 	{
@@ -2574,7 +2536,7 @@ int CServer::Run()
 						InitDnsbl(ClientID);
 					}
 					else if(m_aClients[ClientID].m_DnsblState == CClient::DNSBL_STATE_PENDING &&
-						m_aClients[ClientID].m_pDnsblLookup->Status() == IJob::STATE_DONE)
+						m_aClients[ClientID].m_pDnsblLookup->State() == IJob::STATE_DONE)
 					{
 						if(m_aClients[ClientID].m_pDnsblLookup->m_Result != 0)
 						{
@@ -2651,9 +2613,7 @@ int CServer::Run()
 			}
 
 			// master server stuff
-			m_Register.RegisterUpdate(m_NetServer.NetType());
-			if(g_Config.m_SvSixup)
-				m_RegSixup.RegisterUpdate(m_NetServer.NetType());
+			m_pRegister->Update();
 
 			if(m_ServerInfoNeedsUpdate)
 				UpdateServerInfo();
@@ -2713,7 +2673,10 @@ int CServer::Run()
 			m_NetServer.Drop(i, pDisconnectReason);
 	}
 
+	m_NetServer.Close();
+	m_pRegister->OnShutdown();
 	m_Econ.Shutdown();
+	m_Http.Shutdown();
 
 #if defined(CONF_FAMILY_UNIX)
 	m_Fifo.Shutdown();
@@ -2736,7 +2699,7 @@ int CServer::Run()
 	return ErrorShutdown();
 }
 
-void CServer::ConTestingCommands(CConsole::IResult *pResult, void *pUser)
+void CServer::ConTestingCommands(IConsole::IResult *pResult, void *pUser)
 {
 	char aBuf[128];
 	str_format(aBuf, sizeof(aBuf), "Value: %d", g_Config.m_SvTestingCommands);
@@ -3584,12 +3547,9 @@ int main(int argc, const char **argv) // ignore_convention
 	IEngineMap *pEngineMap = CreateEngineMap();
 	IGameServer *pGameServer = CreateGameServer();
 	IConsole *pConsole = CreateConsole(CFGFLAG_SERVER | CFGFLAG_ECON);
-	IEngineMasterServer *pEngineMasterServer = CreateEngineMasterServer();
 	IStorage *pStorage = CreateStorage("Teeworlds", IStorage::STORAGETYPE_SERVER, argc, argv); // ignore_convention
 	IConfigManager *pConfigManager = CreateConfigManager();
 	IEngineAntibot *pEngineAntibot = CreateEngineAntibot();
-
-	pServer->InitRegister(&pServer->m_NetServer, pEngineMasterServer, pConfigManager->Values(), pConsole);
 
 	{
 		bool RegisterFail = false;
@@ -3602,8 +3562,6 @@ int main(int argc, const char **argv) // ignore_convention
 		RegisterFail = RegisterFail || !pKernel->RegisterInterface(pConsole);
 		RegisterFail = RegisterFail || !pKernel->RegisterInterface(pStorage);
 		RegisterFail = RegisterFail || !pKernel->RegisterInterface(pConfigManager);
-		RegisterFail = RegisterFail || !pKernel->RegisterInterface(pEngineMasterServer); // register as both
-		RegisterFail = RegisterFail || !pKernel->RegisterInterface(static_cast<IMasterServer *>(pEngineMasterServer), false);
 		RegisterFail = RegisterFail || !pKernel->RegisterInterface(pEngineAntibot);
 		RegisterFail = RegisterFail || !pKernel->RegisterInterface(static_cast<IAntibot *>(pEngineAntibot), false);
 
@@ -3617,8 +3575,6 @@ int main(int argc, const char **argv) // ignore_convention
 	pEngine->Init();
 	pConfigManager->Init();
 	pConsole->Init();
-	pEngineMasterServer->Init();
-	pEngineMasterServer->Load();
 
 	// register all console commands
 	pServer->RegisterCommands();

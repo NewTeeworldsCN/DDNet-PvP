@@ -17,6 +17,7 @@ public:
 	char m_aDatadir[MAX_PATH_LENGTH];
 	char m_aUserdir[MAX_PATH_LENGTH];
 	char m_aCurrentdir[MAX_PATH_LENGTH];
+	char m_aBinarydir[MAX_PATH_LENGTH];
 
 	CStorage()
 	{
@@ -353,6 +354,20 @@ public:
 		int m_BufferSize;
 	};
 
+	bool ReadFile(const char *pFilename, int Type, void **ppResult, unsigned *pResultLen)
+	{
+		IOHANDLE File = OpenFile(pFilename, IOFLAG_READ, Type);
+		if(!File)
+		{
+			*ppResult = 0x0;
+			*pResultLen = 0;
+			return false;
+		}
+		io_read_all(File, ppResult, pResultLen);
+		io_close(File);
+		return true;
+	}
+
 	static int FindFileCallback(const char *pName, int IsDir, int Type, void *pUser)
 	{
 		CFindCBData Data = *static_cast<CFindCBData *>(pUser);
@@ -457,7 +472,7 @@ public:
 		return Success;
 	}
 
-	virtual void GetCompletePath(int Type, const char *pDir, char *pBuffer, unsigned BufferSize)
+	void GetCompletePath(int Type, const char *pDir, char *pBuffer, unsigned BufferSize) override
 	{
 		if(Type < 0 || Type >= m_NumPaths)
 		{
@@ -467,6 +482,12 @@ public:
 		}
 
 		GetPath(Type, pDir, pBuffer, BufferSize);
+	}
+
+	virtual const char* GetBinaryPath(const char *pDir, char *pBuffer, unsigned BufferSize)
+	{
+		str_format(pBuffer, BufferSize, "%s%s%s", m_aBinarydir, !m_aBinarydir[0] ? "" : "/", pDir);
+		return pBuffer;
 	}
 
 	static IStorage *Create(const char *pApplicationName, int StorageType, int NumArgs, const char **ppArguments)
@@ -481,6 +502,12 @@ public:
 		return p;
 	}
 };
+
+const char *IStorage::FormatTmpPath(char *aBuf, unsigned BufSize, const char *pPath)
+{
+	str_format(aBuf, BufSize, "%s.%d.tmp", pPath, pid());
+	return aBuf;
+}
 
 void IStorage::StripPathAndExtension(const char *pFilename, char *pBuffer, int BufferSize)
 {
