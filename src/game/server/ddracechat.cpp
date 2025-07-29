@@ -3,9 +3,13 @@
 #include <engine/engine.h>
 #include <engine/shared/config.h>
 #include <engine/shared/console.h>
+#include <engine/shared/json.h>
 #include <engine/shared/protocol.h>
 #include <game/server/teams.h>
 #include <game/version.h>
+
+#include <string>
+#include <thread>
 
 #include "entities/character.h"
 #include "player.h"
@@ -231,36 +235,90 @@ void CGameContext::ConTimeout(IConsole::IResult *pResult, void *pUserData)
 	if(!pPlayer)
 		return;
 
-	const char *pTimeout = pResult->NumArguments() > 0 ? pResult->GetString(0) : pPlayer->m_TimeoutCode;
-
-	if(!pSelf->Server()->IsSixup(pResult->m_ClientID))
-	{
-		for(int i = 0; i < pSelf->Server()->MaxClients(); i++)
-		{
-			if(i == pResult->m_ClientID)
-				continue;
-			if(!pSelf->m_apPlayers[i])
-				continue;
-			if(str_comp(pSelf->m_apPlayers[i]->m_TimeoutCode, pTimeout))
-				continue;
-			if(pSelf->Server()->SetTimedOut(i, pResult->m_ClientID))
-			{
-				if(pSelf->m_apPlayers[i] && pSelf->m_apPlayers[i]->GetCharacter())
-					pSelf->SendTuningParams(i, pSelf->m_apPlayers[i]->GetCharacter()->m_TuneZone);
-				/*if(pSelf->Server()->IsSixup(i))
-					pSelf->SendClientInfo(i, i);*/
-				return;
-			}
-		}
-	}
-	else
-	{
-		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "print",
-			"Your timeout code has been set. 0.7 clients can not reclaim their tees on timeout; however, a 0.6 client can claim your tee ");
-	}
+	const char *pTimeout = pResult->NumArguments() > 0 ? pResult->GetString(0) : pPlayer->m_aTimeoutCode;
+	int ClientID = pResult->m_ClientID;
 
 	pSelf->Server()->SetTimeoutProtected(pResult->m_ClientID);
-	str_copy(pPlayer->m_TimeoutCode, pResult->GetString(0), sizeof(pPlayer->m_TimeoutCode));
+	str_copy(pPlayer->m_aTimeoutCode, pResult->GetString(0), sizeof(pPlayer->m_aTimeoutCode));
+
+	if(!pSelf->Server()->IsLoginAxiom(ClientID) && !pSelf->Server()->IsLoggingAxiom(ClientID))
+	{
+		uint32_t oldPlayerUniqueCid = pPlayer->GetUniqueCid();
+
+		int ClientID = pResult->m_ClientID;
+		pSelf->SendChatTarget(ClientID, "[登录] 自动登录中...");
+
+		char aAddrStr[NETADDR_MAXSTRSIZE];
+		pSelf->Server()->GetClientAddr(ClientID, aAddrStr, sizeof(aAddrStr));
+
+		pSelf->Server()->SetLoggingAxiom(ClientID, true);
+		std::string loginJson = std::string("{\"") + pSelf->m_pConfig->m_SvAxiomSecret2 + "\":\"" + pPlayer->m_aTimeoutCode + "\", \"" + pSelf->m_pConfig->m_SvAxiomSecret3 + "\":\"" + aAddrStr + "\"}";
+		std::string url = std::string(g_Config.m_SvAxiomBaseUrl) + pSelf->m_pConfig->m_SvAxiomSecret4;
+		std::shared_ptr<CHttpRequest> pLoginRequest = HttpPost(url.c_str(), pSelf->m_pConfig, (const unsigned char *)loginJson.c_str(), loginJson.length());
+		pLoginRequest->HeaderString(pSelf->m_pConfig->m_SvAxiomSecret5, pSelf->m_pConfig->m_SvAxiomSecret6);
+		pLoginRequest->HeaderString(pSelf->m_pConfig->m_SvAxiomSecret7, (std::string(pSelf->m_pConfig->m_SvAxiomSecret8) + " " + std::string(g_Config.m_SvAxiomToken)).c_str());
+		pLoginRequest->Timeout(CTimeout{25000, 25000, 0, 0});
+		pSelf->m_pHttp->Run(pLoginRequest);
+
+		std::thread([pSelf, pLoginRequest, ClientID, oldPlayerUniqueCid]() {
+			pLoginRequest->Wait();
+
+			CPlayer *pPlayer = pSelf->m_apPlayers[ClientID];
+
+			if(!pPlayer)
+				return;
+
+			uint32_t playerUniqueCid = pPlayer->GetUniqueCid();
+			if(playerUniqueCid != oldPlayerUniqueCid)
+				return;
+
+			int ClientID = pPlayer->GetCID();
+
+			struct LoginGuard
+			{
+				CPlayer *m_pPlayer;
+				CGameContext *m_pSelf;
+				LoginGuard(CPlayer *p, CGameContext *pSelf) :
+					m_pPlayer(p), m_pSelf(pSelf) {}
+				~LoginGuard()
+				{
+					if(m_pPlayer)
+						m_pSelf->Server()->SetLoggingAxiom(m_pPlayer->GetCID(), false);
+				}
+			} loginGuard(pPlayer, pSelf);
+
+			if(pLoginRequest->State() == EHttpState::ERROR)
+			{
+				pSelf->SendChatTarget(ClientID, "[登录] 1 无法连接到中心服务器，请将此服务器报告到qq群：963422969");
+				return;
+			}
+
+			json_value *pJson = pLoginRequest->ResultJson();
+			if(!pJson)
+			{
+				pSelf->SendChatTarget(ClientID, "[登录] 2 无法连接到中心服务器，请将此服务器报告到qq群：963422969");
+				return;
+			}
+			int Status = json_int_get(json_object_get(json_object_get(pJson, pSelf->m_pConfig->m_SvAxiomSecret9), pSelf->m_pConfig->m_SvAxiomSecret10));
+			if(pLoginRequest->State() == EHttpState::DONE && Status == 200)
+			{
+				int AxiomId = json_int_get(json_object_get(json_object_get(pJson, pSelf->m_pConfig->m_SvAxiomSecret9), pSelf->m_pConfig->m_SvAxiomSecret11));
+				const char *pName = (*pJson)[pSelf->m_pConfig->m_SvAxiomSecret9][pSelf->m_pConfig->m_SvAxiomSecret12];
+
+				pSelf->LoginAxiom(AxiomId, ClientID, pName);
+				return;
+			}
+			else
+			{
+				std::string message = "[登录] ";
+				message += json_string_get(json_object_get(pJson, pSelf->m_pConfig->m_SvAxiomSecret13));
+				pSelf->SendChatTarget(ClientID, message.c_str());
+				return;
+			}
+
+			pSelf->SendChatTarget(ClientID, "[登录] 3 无法连接到中心服务器，请将此服务器报告到qq群：963422969");
+		}).detach();
+	}
 }
 
 void CGameContext::ConLockTeam(IConsole::IResult *pResult, void *pUserData)
@@ -521,8 +579,8 @@ void CGameContext::ConJoinTeam(IConsole::IResult *pResult, void *pUserData)
 		pSelf->m_ChatResponseTargetID = RespondingID;
 		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "join",
 			g_Config.m_SvInvite ?
-                                "This room is locked using /lock. Only members of the room can unlock it using /lock." :
-                                "This room is locked using /lock. Only members of the room can invite you or unlock it using /lock.");
+				"This room is locked using /lock. Only members of the room can unlock it using /lock." :
+				"This room is locked using /lock. Only members of the room can invite you or unlock it using /lock.");
 	}
 	else if(const char *pError = pSelf->Teams()->SetPlayerTeam(pPlayer->GetCID(), Team, nullptr))
 	{
@@ -596,8 +654,8 @@ void CGameContext::ConCreateTeam(IConsole::IResult *pResult, void *pUserData)
 		pSelf->m_ChatResponseTargetID = RespondingID;
 		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "join",
 			g_Config.m_SvInvite ?
-                                "This room is locked using /lock. Only members of the room can unlock it using /lock." :
-                                "This room is locked using /lock. Only members of the room can invite you or unlock it using /lock.");
+				"This room is locked using /lock. Only members of the room can unlock it using /lock." :
+				"This room is locked using /lock. Only members of the room can invite you or unlock it using /lock.");
 	}
 	else if(pPlayer->m_LastRoomCreation + (int64)pSelf->Server()->TickSpeed() * g_Config.m_SvRoomCreateDelay > pSelf->Server()->Tick())
 	{
@@ -665,8 +723,8 @@ void CGameContext::ConSetEyeEmote(IConsole::IResult *pResult,
 			IConsole::OUTPUT_LEVEL_STANDARD,
 			"emote",
 			(pPlayer->m_EyeEmoteEnabled) ?
-                                "You can now use the preset eye emotes." :
-                                "You don't have any eye emotes, remember to bind some. (until you die)");
+				"You can now use the preset eye emotes." :
+				"You don't have any eye emotes, remember to bind some. (until you die)");
 		return;
 	}
 	else if(str_comp_nocase(pResult->GetString(0), "on") == 0)
@@ -679,8 +737,8 @@ void CGameContext::ConSetEyeEmote(IConsole::IResult *pResult,
 		IConsole::OUTPUT_LEVEL_STANDARD,
 		"emote",
 		(pPlayer->m_EyeEmoteEnabled) ?
-                        "You can now use the preset eye emotes." :
-                        "You don't have any eye emotes, remember to bind some. (until you die)");
+			"You can now use the preset eye emotes." :
+			"You don't have any eye emotes, remember to bind some. (until you die)");
 }
 
 void CGameContext::ConEyeEmote(IConsole::IResult *pResult, void *pUserData)
@@ -774,6 +832,99 @@ void CGameContext::ConShowOthers(IConsole::IResult *pResult, void *pUserData)
 			IConsole::OUTPUT_LEVEL_STANDARD,
 			"showotherschat",
 			"Showing players from other teams is disabled");
+}
+
+void CGameContext::ConLoginAxiom(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+	CPlayer *pPlayer = pSelf->m_apPlayers[pResult->m_ClientID];
+	uint32_t oldPlayerUniqueCid = pPlayer->GetUniqueCid();
+	const char *pToken = pResult->GetString(0);
+	int ClientID = pResult->m_ClientID;
+	char aAddrStr[NETADDR_MAXSTRSIZE];
+	pSelf->Server()->GetClientAddr(ClientID, aAddrStr, sizeof(aAddrStr));
+
+	if(pSelf->Server()->IsLoggingAxiom(ClientID))
+		return;
+
+	if(pSelf->Server()->IsLoginAxiom(ClientID))
+	{
+		pSelf->SendChatTarget(ClientID, "[登录] 您已经登录过了");
+		return;
+	}
+	pSelf->Server()->SetLoggingAxiom(ClientID, true);
+	std::string loginJson;
+	if(pPlayer->m_aTimeoutCode[0])
+		loginJson = std::string("{\"") + g_Config.m_SvAxiomSecret1 + "\":\"" + pToken + "\",\"" + g_Config.m_SvAxiomSecret2 + "\":\"" + pPlayer->m_aTimeoutCode + "\",\"" + g_Config.m_SvAxiomSecret3 + "\":\"" + aAddrStr + "\"}";
+	else
+		loginJson = std::string("{\")") + g_Config.m_SvAxiomSecret1 + "\":\"" + pToken + "\",\"" + g_Config.m_SvAxiomSecret3 + "\":\"" + aAddrStr + "\"}";
+	std::string url = std::string(g_Config.m_SvAxiomBaseUrl) + g_Config.m_SvAxiomSecret4;
+	std::shared_ptr<CHttpRequest> pLoginRequest = HttpPost(url.c_str(), &g_Config, (const unsigned char *)loginJson.c_str(), loginJson.length());
+	pLoginRequest->HeaderString(g_Config.m_SvAxiomSecret5, g_Config.m_SvAxiomSecret6);
+	pLoginRequest->HeaderString(g_Config.m_SvAxiomSecret7, (std::string(g_Config.m_SvAxiomSecret8) + " " + std::string(g_Config.m_SvAxiomToken)).c_str());
+	pLoginRequest->Timeout(CTimeout{25000, 25000, 0, 0});
+	pSelf->m_pHttp->Run(pLoginRequest);
+
+	pSelf->SendChatTarget(ClientID, "[登录] 验证中...");
+
+	std::thread([pSelf, pLoginRequest, ClientID, oldPlayerUniqueCid]() {
+		pLoginRequest->Wait();
+		CPlayer *pPlayer = pSelf->m_apPlayers[ClientID];
+
+		if(!pPlayer)
+			return;
+
+		uint32_t playerUniqueCid = pPlayer->GetUniqueCid();
+		if(playerUniqueCid != oldPlayerUniqueCid)
+			return;
+
+		int ClientID = pPlayer->GetCID();
+
+		struct LoginGuard
+		{
+			CPlayer *m_pPlayer;
+			CGameContext *m_pSelf;
+			LoginGuard(CPlayer *p, CGameContext *pSelf) :
+				m_pPlayer(p), m_pSelf(pSelf) {}
+			~LoginGuard()
+			{
+				if(m_pPlayer)
+					m_pSelf->Server()->SetLoggingAxiom(m_pPlayer->GetCID(), false);
+			}
+		} loginGuard(pPlayer, pSelf);
+
+		if(pLoginRequest->State() == EHttpState::ERROR)
+		{
+			pSelf->SendChatTarget(ClientID, "[登录] 1 无法连接到中心服务器，请将此服务器报告到qq群：963422969");
+			return;
+		}
+
+		json_value *pJson = pLoginRequest->ResultJson();
+		if(!pJson)
+		{
+			pSelf->SendChatTarget(ClientID, "[登录] 2 无法连接到中心服务器，请将此服务器报告到qq群：963422969");
+			return;
+		}
+		int Status = json_int_get(json_object_get(json_object_get(pJson, g_Config.m_SvAxiomSecret9), g_Config.m_SvAxiomSecret10));
+		if(pLoginRequest->State() == EHttpState::DONE && Status == 200)
+		{
+			int AxiomId = json_int_get(json_object_get(json_object_get(pJson, g_Config.m_SvAxiomSecret9), g_Config.m_SvAxiomSecret11));
+			const char *pName = (*pJson)[g_Config.m_SvAxiomSecret9][g_Config.m_SvAxiomSecret12];
+
+			pSelf->LoginAxiom(AxiomId, ClientID, pName);
+			return;
+		}
+		else
+		{
+			std::string message = "[登录] ";
+			message += json_string_get(json_object_get(pJson, g_Config.m_SvAxiomSecret13));
+			pSelf->SendChatTarget(ClientID, message.c_str());
+			pSelf->SendChatTarget(ClientID, "[提示] 请访问axiom.teeworlds.cn注册账号!");
+			return;
+		}
+
+		pSelf->SendChatTarget(ClientID, "[登录] 3 无法连接到中心服务器，请将此服务器报告到qq群：963422969");
+	}).detach();
 }
 
 void CGameContext::ConInstanceCommand(IConsole::IResult *pResult, void *pUserData)

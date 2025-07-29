@@ -30,6 +30,8 @@
 
 #define TESTTYPE_NAME "TestDDPvP"
 
+#include <thread>
+
 enum
 {
 	RESET,
@@ -228,7 +230,7 @@ void CGameContext::SendChatTarget(int To, const char *pText, int Flags)
 		for(int i = 0; i < MAX_CLIENTS; i++)
 		{
 			if(!m_apPlayers[i] && !((Server()->IsSixup(i) && (Flags & CHAT_SIXUP)) ||
-				   (!Server()->IsSixup(i) && (Flags & CHAT_SIX))))
+						      (!Server()->IsSixup(i) && (Flags & CHAT_SIX))))
 				continue;
 
 			Server()->SendPackMsg(&Msg, MSGFLAG_VITAL | MSGFLAG_NORECORD, i);
@@ -1228,17 +1230,13 @@ void CGameContext::OnClientConnected(int ClientID, void *pData)
 	const bool AsSpec = (Spec || g_Config.m_SvTournamentMode || g_Config.m_SvRoom == 2) ? true : false;
 
 	if(!m_apPlayers[ClientID])
-		m_apPlayers[ClientID] = new(ClientID) CPlayer(this, ClientID, AsSpec);
+		m_apPlayers[ClientID] = new(ClientID) CPlayer(this, NextUniqueClientId, ClientID, AsSpec);
 	else
 	{
 		delete m_apPlayers[ClientID];
-		m_apPlayers[ClientID] = new(ClientID) CPlayer(this, ClientID, AsSpec);
-		//	//m_apPlayers[ClientID]->Reset();
-		//	//((CServer*)Server())->m_aClients[ClientID].Reset();
-		//	((CServer*)Server())->m_aClients[ClientID].m_State = 4;
+		m_apPlayers[ClientID] = new(ClientID) CPlayer(this, NextUniqueClientId, ClientID, AsSpec);
 	}
-	//players[client_id].init(client_id);
-	//players[client_id].client_id = client_id;
+	NextUniqueClientId += 1;
 
 #ifdef CONF_DEBUG
 	if(g_Config.m_DbgDummies)
@@ -1455,7 +1453,7 @@ void *CGameContext::PreProcessMsg(int *MsgID, CUnpacker *pUnpacker, int ClientID
 			{
 				str_format(s_aRawMsg, sizeof(s_aRawMsg), "force_vote \"%s\" \"%s\" \"%s\"", pMsg7->m_Type, pMsg7->m_Value, pMsg7->m_Reason);
 				Console()->SetAccessLevel(Authed == AUTHED_ADMIN ? IConsole::ACCESS_LEVEL_ADMIN : Authed == AUTHED_MOD ? IConsole::ACCESS_LEVEL_MOD :
-                                                                                                                                         IConsole::ACCESS_LEVEL_HELPER);
+																	 IConsole::ACCESS_LEVEL_HELPER);
 				Console()->ExecuteLine(s_aRawMsg, ClientID, false);
 				Console()->SetAccessLevel(IConsole::ACCESS_LEVEL_ADMIN);
 				return 0;
@@ -1609,7 +1607,7 @@ void CGameContext::OnMessage(int MsgID, CUnpacker *pUnpacker, int ClientID)
 					int Authed = Server()->GetAuthedState(ClientID);
 					if(Authed)
 						Console()->SetAccessLevel(Authed == AUTHED_ADMIN ? IConsole::ACCESS_LEVEL_ADMIN : Authed == AUTHED_MOD ? IConsole::ACCESS_LEVEL_MOD :
-                                                                                                                                                         IConsole::ACCESS_LEVEL_HELPER);
+																			 IConsole::ACCESS_LEVEL_HELPER);
 					else
 						Console()->SetAccessLevel(IConsole::ACCESS_LEVEL_USER);
 					Console()->SetPrintOutputLevel(m_ChatPrintCBIndex, 0);
@@ -1794,7 +1792,7 @@ void CGameContext::OnMessage(int MsgID, CUnpacker *pUnpacker, int ClientID)
 					m_apPlayers[ClientID]->m_LastKickVote = time_get();
 					return;
 				}
-				//else if(!g_Config.m_SvVoteKick)
+				// else if(!g_Config.m_SvVoteKick)
 				else if((!g_Config.m_SvVoteKick || (g_Config.m_SvVoteKick == 2 && !GetDDRaceTeam(ClientID))) && !Authed) // allow admins to call kick votes even if they are forbidden
 				{
 					SendChatTarget(ClientID, "Server does not allow voting to kick players");
@@ -2875,7 +2873,7 @@ void CGameContext::OnConsoleInit()
 #include <game/ddracechat.h>
 }
 
-void CGameContext::OnInit(/*class IKernel *pKernel*/)
+void CGameContext::OnInit()
 {
 	m_pServer = Kernel()->RequestInterface<IServer>();
 	m_pConfig = Kernel()->RequestInterface<IConfigManager>()->Values();
@@ -3018,7 +3016,7 @@ void CGameContext::OnInit(/*class IKernel *pKernel*/)
 			if(Index >= ENTITY_OFFSET)
 			{
 				vec2 Pos(x * 32.0f + 16.0f, y * 32.0f + 16.0f);
-				//m_pController->OnEntity(Index-ENTITY_OFFSET, Pos);
+				// m_pController->OnEntity(Index-ENTITY_OFFSET, Pos);
 				int MapIndex = 0;
 				if(pSpeedup)
 				{
@@ -3221,6 +3219,11 @@ CUuid CGameContext::GameUuid() const { return m_GameUuid; }
 const char *CGameContext::GameType() const { return g_Config.m_SvTestingCommands ? TESTTYPE_NAME : CGameTeams::GameTypeName(); }
 const char *CGameContext::Version() const { return GAME_VERSION; }
 const char *CGameContext::NetVersion() const { return GAME_NETVERSION; }
+
+void CGameContext::RegisterHttp(IHttp *pHttp)
+{
+	m_pHttp = pHttp;
+}
 
 IGameServer *CreateGameServer() { return new CGameContext; }
 
@@ -3983,4 +3986,103 @@ void CGameContext::SendSkinInfo(int ClientID)
 	}
 
 	Server()->SendPackMsg(&Msg, MSGFLAG_VITAL | MSGFLAG_NORECORD, -1);
+}
+
+void CGameContext::LoginAxiom(int AxiomId, int RequestClientId, const char *pName)
+{
+	if(AxiomId == -1 || Server()->IsLoginAxiom(RequestClientId))
+		return;
+
+	CPlayer *pPlayer = m_apPlayers[RequestClientId];
+	for(int i = 0; i < MAX_CLIENTS; i++)
+	{
+		CPlayer *pOther = m_apPlayers[i];
+		if(!pOther || !Server()->IsLoginAxiom(pOther->GetCID()) || pOther->GetCID() == pPlayer->GetCID())
+			continue;
+
+		if(Server()->GetAxiomId(pOther->GetCID()) == AxiomId)
+		{
+			if(pOther->IsTimeout())
+			{
+				if(!Server()->IsSixup(RequestClientId) && str_comp(pOther->m_aTimeoutCode, pPlayer->m_aTimeoutCode) == 0)
+				{
+					if(Server()->SetTimedOut(i, pPlayer->GetCID()))
+					{
+						if(pOther->GetCharacter())
+							SendTuningParams(pOther->GetCID(), pOther->GetCharacter()->m_TuneZone);
+						pOther->m_isTimeout = false;
+						
+						Server()->SetLoggingAxiom(pOther->GetCID(), false);
+						Server()->SetLoginAxiom(pOther->GetCID(), true);
+						Server()->SetAxiomId(pOther->GetCID(), Server()->GetAxiomId(pOther->GetCID()));
+
+						SendBroadcast("", i);
+						char aBuf[512];
+						if(!Server()->ClientPrevIngame(i))
+						{
+							str_format(aBuf, sizeof(aBuf), "[+] %s (超时重连)", pName);
+							SendChatTarget(-1, aBuf);
+						}
+
+						str_format(aBuf, sizeof(aBuf), "[登录] 重连成功！欢迎回来 %s", pName);
+						SendChatTarget(i, aBuf);
+						return;
+					}
+				}
+				else
+				{
+					Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "chatresp",
+						"Your timeout code has been set. 0.7 clients can not reclaim their tees on timeout; however, a 0.6 client can claim your tee ");
+				}
+			}
+			SendChatTarget(RequestClientId, "[登录] 该凭证已有玩家在线，超时重连请等待目标玩家超时后重新登录");
+			return;
+		}
+	}
+
+	Server()->WouldClientNameChange(RequestClientId, pName);
+	Server()->SetLoggingAxiom(RequestClientId, false);
+	Server()->SetLoginAxiom(RequestClientId, true);
+	Server()->SetAxiomId(RequestClientId, AxiomId);
+
+	pPlayer->SetTeam(0);
+	SendBroadcast("", RequestClientId);
+
+	char aBuf[512];
+	/*if(!Server()->ClientPrevIngame(RequestClientId))
+	{
+		str_format(aBuf, sizeof(aBuf), "[+] %s", pName);
+		SendChatTarget(-1, aBuf);
+
+		char aAddrStr[NETADDR_MAXSTRSIZE];
+		Server()->GetClientAddr(RequestClientId, aAddrStr, sizeof(aAddrStr));
+
+		CJsonStringWriter JsonWriter;
+
+		JsonWriter.BeginObject();
+
+		JsonWriter.WriteAttribute("type");
+		JsonWriter.WriteStrValue("player_join");
+
+		JsonWriter.WriteAttribute("client_id");
+		JsonWriter.WriteIntValue(RequestClientId);
+
+		JsonWriter.WriteAttribute("player_id");
+		JsonWriter.WriteIntValue(AxiomId);
+
+		JsonWriter.WriteAttribute("ip");
+		JsonWriter.WriteStrValue(aAddrStr);
+
+		JsonWriter.WriteAttribute("player_name");
+		JsonWriter.WriteStrValue(pName);
+
+		JsonWriter.WriteAttribute("server_id");
+		JsonWriter.WriteIntValue(-1);
+
+		JsonWriter.EndObject();
+		Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "json", JsonWriter.GetOutputString().c_str());
+	}*/
+
+	str_format(aBuf, sizeof(aBuf), "[登录] 欢迎回来 %s", pName);
+	SendChatTarget(RequestClientId, aBuf);
 }

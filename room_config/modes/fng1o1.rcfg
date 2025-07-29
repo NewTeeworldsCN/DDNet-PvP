@@ -9,12 +9,12 @@ kill_delay 20
 # room votes
 add_vote " " "info"
 add_vote "=== 房间设置 ===" "info"
-add_vote "Restart" "restart 10"
+add_vote "重开 Restart" "restart 10"
 
 # rulesets
-add_vote "Rule: 10min 100points" "scorelimit 100;timelimit 10"
-add_vote "Rule: 15min 200points" "scorelimit 200;timelimit 15"
-add_vote "Rule: 20min 300points" "scorelimit 300;timelimit 20"
+add_vote "规则: 10min 100points" "scorelimit 100;timelimit 10"
+add_vote "规则: 15min 200points" "scorelimit 200;timelimit 15"
+add_vote "规则: 20min 300points" "scorelimit 300;timelimit 20"
 exec "room_config/modes/fngsuperconfig.rcfg"
 
 # add mode switch votes

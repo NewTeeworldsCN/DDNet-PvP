@@ -413,8 +413,8 @@ void CCharacter::ResetHook()
 void CCharacter::ResetInput()
 {
 	m_Input.m_Direction = 0;
-	//m_Input.m_Hook = 0;
-	// simulate releasing the fire button
+	// m_Input.m_Hook = 0;
+	//  simulate releasing the fire button
 	if((m_Input.m_Fire & 1) != 0)
 		m_Input.m_Fire++;
 	m_Input.m_Fire &= INPUT_STATE_MASK;
@@ -485,7 +485,7 @@ void CCharacter::TickDefered()
 		m_Core.AddDragVelocity();
 	m_Core.ResetDragVelocity();
 
-	//lastsentcore
+	// lastsentcore
 	vec2 StartPos = m_Core.m_Pos;
 	vec2 StartVel = m_Core.m_Vel;
 	bool StuckBefore = GameServer()->Collision()->TestBox(m_Core.m_Pos, vec2(28.0f, 28.0f));
@@ -776,7 +776,7 @@ bool CCharacter::TakeDamage(vec2 Force, int Dmg, int From, int Weapon, int Weapo
 	return true;
 }
 
-//TODO: Move the emote stuff to a function
+// TODO: Move the emote stuff to a function
 void CCharacter::SnapCharacter(int SnappingClient, int MappedID)
 {
 	CCharacterCore *pCore;
@@ -1048,9 +1048,22 @@ void CCharacter::Snap(int SnappingClient, int OtherMode)
 	else if(CurrentWeapon())
 		WeaponFlag |= 1 << (CurrentWeapon()->GetType() + 14); // snap in-hand waepon only
 
-	pDDNetCharacter->m_FreezeStart = m_FreezeTick;
-	pDDNetCharacter->m_FreezeEnd = m_DeepFreeze ? -1 : m_FreezeTime == 0 ? 0 :
-                                                                               Server()->Tick() + m_FreezeTime;
+	if(SnappingClient == GetPlayer()->GetCID())
+	{
+		pDDNetCharacter->m_FreezeStart = m_FreezeTick;
+		pDDNetCharacter->m_FreezeEnd = m_DeepFreeze ? -1 : m_FreezeTime == 0 ? 0 :
+										       Server()->Tick() + m_FreezeTime;
+	}
+	else if(m_FreezeTick)
+	{
+		pDDNetCharacter->m_FreezeStart = Server()->Tick();
+		pDDNetCharacter->m_FreezeEnd = Server()->Tick();
+	}
+	else
+	{
+		pDDNetCharacter->m_FreezeStart = 0;
+		pDDNetCharacter->m_FreezeEnd = 0;
+	}
 	pDDNetCharacter->m_Jumps = m_Core.m_Jumps;
 	pDDNetCharacter->m_TeleCheckpoint = m_TeleCheckpoint;
 	pDDNetCharacter->m_StrongWeakID = SnappingClient == m_pPlayer->GetCID() ? 1 : 0;
@@ -1058,9 +1071,9 @@ void CCharacter::Snap(int SnappingClient, int OtherMode)
 	pDDNetCharacter->m_JumpedTotal = m_Core.m_JumpedTotal;
 	pDDNetCharacter->m_TargetX = m_Input.m_TargetX;
 	pDDNetCharacter->m_TargetY = m_Input.m_TargetY;
-	//if(m_Core.)
+	// if(m_Core.)
 	{
-		//pDDNetCharacter->m_Flags |= CHARACTERFLAG_IN_FREEZE;
+		// pDDNetCharacter->m_Flags |= CHARACTERFLAG_IN_FREEZE;
 	}
 	pDDNetCharacter->m_TuneZoneOverride = -1;
 }
@@ -1235,7 +1248,7 @@ bool CCharacter::IsSwitchActiveCb(int Number, void *pUser)
 void CCharacter::HandleTiles(int Index)
 {
 	int MapIndex = Index;
-	//int PureMapIndex = GameServer()->Collision()->GetPureMapIndex(m_Pos);
+	// int PureMapIndex = GameServer()->Collision()->GetPureMapIndex(m_Pos);
 	m_TileIndex = GameServer()->Collision()->GetTileIndex(MapIndex);
 	m_TileFIndex = GameServer()->Collision()->GetFTileIndex(MapIndex);
 	m_MoveRestrictions = GameServer()->Collision()->GetMoveRestrictions(IsSwitchActiveCb, this, m_Pos, 18.0f, MapIndex);

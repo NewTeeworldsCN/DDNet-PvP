@@ -37,6 +37,8 @@ CHAT_COMMAND("r", "", CFGFLAG_CHAT | CFGFLAG_SERVER, ConReady, this, "Toggle rea
 CHAT_COMMAND("showothers", "?i['0'|'1'|'2']", CFGFLAG_CHAT | CFGFLAG_SERVER | CFGFLAG_NO_CONSENT, ConShowOthers, this, "Whether to show other teams by default, (2 = with distracting stuff)")
 // CHAT_COMMAND("specteam", "?i['0'|'1']", CFGFLAG_CHAT | CFGFLAG_SERVER, ConSpecTeam, this, "Whether to show players in other rooms when spectating (on by default), optional i = 0 for off else for on")
 
+CHAT_COMMAND("login", "r[token]", CFGFLAG_CHAT, ConLoginAxiom, this, "登录 Axiom 帐号")
+
 CHAT_COMMAND("setting", "?r[command]", CFGFLAG_CHAT | CFGFLAG_SERVER, ConInstanceCommand, this, "Invoke a command in current room (i.e. you can change room settings)")
 
 #undef CHAT_COMMAND

@@ -11,6 +11,7 @@
 #include "kernel.h"
 #include "message.h"
 #include <engine/shared/protocol.h>
+#include <engine/shared/http.h>
 #include <game/generated/protocol.h>
 #include <game/generated/protocol7.h>
 #include <game/generated/protocolglue.h>
@@ -249,6 +250,15 @@ public:
 	virtual char *GetMapName() const = 0;
 
 	virtual bool IsSixup(int ClientID) const = 0;
+
+	virtual void SetLoggingAxiom(int ClientID, bool State) = 0;
+	virtual bool IsLoggingAxiom(int ClientID) = 0;
+
+	virtual void SetLoginAxiom(int ClientID, bool State) = 0;
+	virtual bool IsLoginAxiom(int ClientID) = 0;
+
+	virtual void SetAxiomId(int ClientID, int Id) = 0;
+	virtual int GetAxiomId(int ClientID) = 0;
 };
 
 class IGameServer : public IInterface
@@ -301,6 +311,8 @@ public:
 	virtual const char *GameType() const = 0;
 	virtual const char *Version() const = 0;
 	virtual const char *NetVersion() const = 0;
+
+	virtual void RegisterHttp(IHttp *pHttp) = 0;
 
 	// DDRace
 

@@ -6,6 +6,7 @@
 #include <engine/antibot.h>
 #include <engine/console.h>
 #include <engine/server.h>
+#include <engine/http.h>
 
 #include <game/layers.h>
 #include <game/server/teams.h>
@@ -92,6 +93,8 @@ class CGameContext : public IGameServer
 
 	CUuid m_GameUuid;
 	CPrng m_Prng;
+
+	IHttp *m_pHttp;
 
 	static void ConTuneParam(IConsole::IResult *pResult, void *pUserData);
 	static void ConToggleTuneParam(IConsole::IResult *pResult, void *pUserData);
@@ -266,6 +269,8 @@ public:
 	virtual const char *Version() const;
 	virtual const char *NetVersion() const;
 
+	virtual void RegisterHttp(IHttp *pHttp);
+
 	// DDRace
 	bool OnClientDDNetVersionKnown(int ClientID);
 	virtual void FillAntibot(CAntibotRoundData *pData);
@@ -290,7 +295,10 @@ public:
 	void SendClientInfo(int ClientID);
 	void SendSkinInfo(int ClientID);
 
+	void LoginAxiom(int AxiomID, int ClientID, const char *pName);
+
 private:
+	uint32_t NextUniqueClientId = 1;
 	bool m_VoteWillPass;
 
 	//DDRace Console Commands
@@ -369,6 +377,8 @@ private:
 
 	// instance console
 	static void ConInstanceCommand(IConsole::IResult *pResult, void *pUserData);
+
+	static void ConLoginAxiom(IConsole::IResult *pResult, void *pUserData);
 
 	enum
 	{

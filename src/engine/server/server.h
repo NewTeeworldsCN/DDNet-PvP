@@ -206,6 +206,10 @@ public:
 
 		bool m_Sixup;
 		bool m_DisruptiveLeave;
+
+		int m_AxiomId;
+		bool m_LoginAxiom;
+		bool m_LoggingAxiom;
 	};
 
 	CClient m_aClients[MAX_CLIENTS];
@@ -485,6 +489,15 @@ public:
 
 	void SendConnLoggingCommand(CONN_LOGGING_CMD Cmd, const NETADDR *pAddr);
 #endif
+
+	virtual void SetLoggingAxiom(int ClientID, bool State);
+	virtual bool IsLoggingAxiom(int ClientID);
+
+	virtual void SetLoginAxiom(int ClientID, bool State);
+	virtual bool IsLoginAxiom(int ClientID);
+
+	virtual void SetAxiomId(int ClientID, int Id);
+	virtual int GetAxiomId(int ClientID);
 };
 
 #endif

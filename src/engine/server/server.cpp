@@ -523,6 +523,7 @@ int CServer::Init()
 		Client.m_Latency = 0;
 		Client.m_Sixup = false;
 		Client.m_DisruptiveLeave = false;
+		Client.m_LoginAxiom = false;
 	}
 
 	m_CurrentGameTick = 0;
@@ -1006,6 +1007,7 @@ int CServer::NewClientNoAuthCallback(int ClientID, void *pUser)
 	pThis->m_aClients[ClientID].m_pRconCmdToSend = 0;
 	pThis->m_aClients[ClientID].m_ShowIps = false;
 	pThis->m_aClients[ClientID].m_DisruptiveLeave = false;
+	pThis->m_aClients[ClientID].m_LoginAxiom = false;
 	pThis->m_aClients[ClientID].Reset();
 
 	pThis->SendCapabilities(ClientID);
@@ -1033,6 +1035,7 @@ int CServer::NewClientCallback(int ClientID, void *pUser, bool Sixup)
 	pThis->m_aClients[ClientID].m_TrafficSince = 0;
 	pThis->m_aClients[ClientID].m_ShowIps = false;
 	pThis->m_aClients[ClientID].m_DisruptiveLeave = false;
+	pThis->m_aClients[ClientID].m_LoginAxiom = false;
 	memset(&pThis->m_aClients[ClientID].m_Addr, 0, sizeof(NETADDR));
 	pThis->m_aClients[ClientID].Reset();
 
@@ -1126,6 +1129,7 @@ int CServer::DelClientCallback(int ClientID, const char *pReason, void *pUser)
 	pThis->m_aClients[ClientID].m_TrafficSince = 0;
 	pThis->m_aClients[ClientID].m_ShowIps = false;
 	pThis->m_aClients[ClientID].m_DisruptiveLeave = false;
+	pThis->m_aClients[ClientID].m_LoginAxiom = false;
 	pThis->m_aPrevStates[ClientID] = CClient::STATE_EMPTY;
 	pThis->m_aClients[ClientID].m_Snapshots.PurgeAll();
 	pThis->m_aClients[ClientID].m_Sixup = false;
@@ -2433,6 +2437,8 @@ int CServer::Run()
 
 	Antibot()->Init();
 	GameServer()->OnInit();
+	GameServer()->RegisterHttp(&m_Http);
+
 	if(ErrorShutdown())
 	{
 		m_RunServer = STOPPING;
@@ -3698,4 +3704,52 @@ bool CServer::SetTimedOut(int ClientID, int OrigID)
 void CServer::SetErrorShutdown(const char *pReason)
 {
 	str_copy(m_aErrorShutdownReason, pReason, sizeof(m_aErrorShutdownReason));
+}
+
+void CServer::SetLoggingAxiom(int ClientID, bool State)
+{
+	if(ClientID < 0 || ClientID >= MAX_CLIENTS || m_aClients[ClientID].m_State < CClient::STATE_READY)
+		return;
+	
+	m_aClients[ClientID].m_LoggingAxiom = State;
+}
+
+bool CServer::IsLoggingAxiom(int ClientID)
+{
+	if(ClientID < 0 || ClientID >= MAX_CLIENTS || m_aClients[ClientID].m_State < CClient::STATE_READY)
+		return false;
+
+	return m_aClients[ClientID].m_LoggingAxiom;
+}
+
+void CServer::SetLoginAxiom(int ClientID, bool State)
+{
+	if(ClientID < 0 || ClientID >= MAX_CLIENTS || m_aClients[ClientID].m_State < CClient::STATE_READY)
+		return;
+
+	m_aClients[ClientID].m_LoginAxiom = State;
+}
+
+bool CServer::IsLoginAxiom(int ClientID)
+{
+	if(ClientID < 0 || ClientID >= MAX_CLIENTS || m_aClients[ClientID].m_State < CClient::STATE_READY)
+		return false;
+
+	return m_aClients[ClientID].m_LoginAxiom;
+}
+
+void CServer::SetAxiomId(int ClientID, int Id)
+{
+	if(ClientID < 0 || ClientID >= MAX_CLIENTS || m_aClients[ClientID].m_State < CClient::STATE_READY)
+		return;
+	
+	m_aClients[ClientID].m_AxiomId = Id;
+}
+
+int CServer::GetAxiomId(int ClientID)
+{
+	if(ClientID < 0 || ClientID >= MAX_CLIENTS || m_aClients[ClientID].m_State < CClient::STATE_READY)
+		return false;
+
+	return m_aClients[ClientID].m_AxiomId;
 }

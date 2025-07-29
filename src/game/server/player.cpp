@@ -14,7 +14,8 @@ MACRO_ALLOC_POOL_ID_IMPL(CPlayer, MAX_CLIENTS)
 
 IServer *CPlayer::Server() const { return m_pGameServer->Server(); }
 
-CPlayer::CPlayer(CGameContext *pGameServer, int ClientID, bool AsSpec)
+CPlayer::CPlayer(CGameContext *pGameServer, uint32_t UniqueClientId, int ClientID, bool AsSpec)
+: m_UniqueClientId(UniqueClientId)
 {
 	m_pGameServer = pGameServer;
 	m_ClientID = ClientID;
@@ -71,7 +72,7 @@ void CPlayer::Reset()
 	m_Afk = true;
 	m_LastWhisperTo = -1;
 	m_LastSetSpectatorMode = 0;
-	m_TimeoutCode[0] = '\0';
+	m_aTimeoutCode[0] = '\0';
 	delete m_pLastTarget;
 	m_pLastTarget = nullptr;
 	m_TuneZone = 0;
@@ -131,6 +132,7 @@ void CPlayer::Reset()
 
 	m_NotEligibleForFinish = false;
 	m_EligibleForFinishCheck = 0;
+	m_isTimeout = false;
 }
 
 void CPlayer::GameReset()
@@ -342,6 +344,7 @@ void CPlayer::Tick()
 			str_format(aBuf, sizeof(aBuf), "'%s' would have timed out, but can use timeout protection now", Server()->ClientName(m_ClientID));
 			GameServer()->SendChat(-1, CGameContext::CHAT_ALL, aBuf);
 			Server()->ResetNetErrorString(m_ClientID);
+			m_isTimeout = true;
 		}
 		else
 		{

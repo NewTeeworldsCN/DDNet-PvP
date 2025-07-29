@@ -4,8 +4,8 @@
 exec "room_config/modes/ctf.rcfg"
 
 # instagib settings
-add_vote "Setting: Free rocket jump ON" "ammo_regen_boost 1"
-add_vote "Setting: Free rocket jump OFF" "ammo_regen_boost 0"
+add_vote "设置: 榴弹跳 ON" "ammo_regen_boost 1"
+add_vote "设置: 榴弹跳 OFF" "ammo_regen_boost 0"
 
 weapon 3
 max_ammo 6

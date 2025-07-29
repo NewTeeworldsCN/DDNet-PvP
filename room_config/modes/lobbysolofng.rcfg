@@ -1,6 +1,6 @@
 # solofng room config
 
-map AliveFNG
+map solofng5ez
 scorelimit 200
 timelimit 15
 kill_delay 20
@@ -8,12 +8,12 @@ kill_delay 20
 # room votes
 add_vote " " "info"
 add_vote "=== 房间设置 ===" "info"
-add_vote "Restart" "restart 10"
+add_vote "重开 Restart" "restart 10"
 
 # rulesets
-add_vote "Rule: 15min 200points" "scorelimit 200;timelimit 15"
-add_vote "Rule: 20min 300points" "scorelimit 300;timelimit 20"
-add_vote "Rule: 35min 500points" "scorelimit 500;timelimit 35"
+add_vote "规则: 15min 200points" "scorelimit 200;timelimit 15"
+add_vote "规则: 20min 300points" "scorelimit 300;timelimit 20"
+add_vote "规则: 35min 500points" "scorelimit 500;timelimit 35"
 exec "room_config/modes/fngsuperconfig.rcfg"
 
 # add mode switch votes

@@ -30,7 +30,7 @@ class CPlayer
 	MACRO_ALLOC_POOL_ID()
 
 public:
-	CPlayer(CGameContext *pGameServer, int ClientID, bool AsSpec);
+	CPlayer(CGameContext *pGameServer, uint32_t UniqueClientId, int ClientID, bool AsSpec);
 	~CPlayer();
 
 	void Reset();
@@ -188,6 +188,8 @@ private:
 	int m_SpectatorID;
 	void SetSpectatorID(int ClientID);
 
+	const uint32_t m_UniqueClientId;
+
 public:
 	enum
 	{
@@ -208,7 +210,7 @@ public:
 
 	bool m_DND;
 	int64 m_FirstVoteTick;
-	char m_TimeoutCode[64];
+	char m_aTimeoutCode[64];
 
 	void ProcessPause();
 	int Pause(bool Paused, bool Force);
@@ -257,6 +259,10 @@ public:
 
 	class CFlag *m_pSpecFlag;
 	bool m_ActiveSpecSwitch;
+
+	uint32_t GetUniqueCid() const { return m_UniqueClientId; }
+	bool m_isTimeout;
+	bool IsTimeout() { return m_isTimeout; }
 };
 
 #endif

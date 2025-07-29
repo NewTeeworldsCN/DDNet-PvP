@@ -2,7 +2,7 @@
 
 # game settings
 scorelimit 100
-map lms1
+map dm1
 warmup 10
 powerups 1
 winner_bonus 100
@@ -10,8 +10,8 @@ minimum_players 5
 
 # room votes
 add_vote " " "info"
-add_vote "=== ROOM SETTINGS ===" "info"
-add_vote "Restart" "restart"
+add_vote "=== 房间设置 ===" "info"
+add_vote "重开 Restart" "restart 10"
 
 # add mode switch votes
 exec "room_config/modes.rcfg"
