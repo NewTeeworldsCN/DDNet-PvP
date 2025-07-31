@@ -27,6 +27,8 @@ private:
 	int m_PlayerFreezeScore;
 	int m_TeamFreezeScore;
 
+	int m_AnnounceWinner;
+
 	int m_HammeredBy[MAX_CLIENTS];
 	int m_HookedBy[MAX_CLIENTS];
 	bool m_IsSaved[MAX_CLIENTS];
@@ -63,6 +65,9 @@ public:
 	virtual bool IsDisruptiveLeave(class CPlayer *pPlayer) const override;
 	virtual float SpawnPosDangerScore(vec2 Pos, int SpawningTeam, class CCharacter *pChar) const;
 	virtual bool CanPause(int RequestedTicks) override;
+
+	// game
+	virtual void DoWincheckMatch() override;
 };
 
 class CGameControllerFNG : public CGameControllerSoloFNG

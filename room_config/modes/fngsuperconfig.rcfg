@@ -1,5 +1,6 @@
 
 add_vote "    " "info"
+add_vote "# 设置" "info"
 add_vote "设置：使用 锤子 冰冻敌人" "weapon 0"
 add_vote "设置：使用 手枪 冰冻敌人" "weapon 1"
 add_vote "设置：使用 散弹 冰冻敌人" "weapon 2"
@@ -12,6 +13,8 @@ add_vote "设置：只有红/蓝刺可以得分" "score_only 2"
 add_vote "设置：只有金刺可以得分" "score_only 3"
 add_vote "设置：只有绿刺可以得分" "score_only 4"
 add_vote "设置：只有紫刺可以得分" "score_only 5"
+add_vote "设置：结束时公布赢家 ON" "announce_winner 1"
+add_vote "设置：结束时公布赢家 OFF" "announce_winner 0"
 add_vote "  " "info"
 # add map votes
 exec "room_config/maps/fng.rcfg"

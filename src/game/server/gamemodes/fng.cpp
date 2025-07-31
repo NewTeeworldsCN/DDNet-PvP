@@ -32,6 +32,8 @@ CGameControllerSoloFNG::CGameControllerSoloFNG()
 	INSTANCE_CONFIG_INT(&m_PlayerFreezeScore, "player_freeze_score", 1, 0, 100, CFGFLAG_CHAT | CFGFLAG_INSTANCE, "Points a player receives for freezing an opponent")
 	INSTANCE_CONFIG_INT(&m_TeamFreezeScore, "team_freeze_score", 1, 0, 100, CFGFLAG_CHAT | CFGFLAG_INSTANCE, "Points a team receives for freezing an opponent")
 
+	INSTANCE_CONFIG_INT(&m_AnnounceWinner, "announce_winner", 1, 0, 1, CFGFLAG_CHAT | CFGFLAG_INSTANCE, "Announce the winner after the game ends")
+
 	for(int i = 0; i < MAX_CLIENTS; i++)
 		m_HookedBy[i] = -1;
 }
@@ -400,9 +402,78 @@ bool CGameControllerSoloFNG::CanPause(int RequestedTicks)
 	return true;
 }
 
+// game
+void CGameControllerSoloFNG::DoWincheckMatch()
+{
+	char aBuf[64];
+	if(IsTeamplay()) // include fng
+	{
+		// check score win condition
+		if((m_GameInfo.m_ScoreLimit > 0 && (m_aTeamscore[TEAM_RED] >= m_GameInfo.m_ScoreLimit || m_aTeamscore[TEAM_BLUE] >= m_GameInfo.m_ScoreLimit)) ||
+			(m_GameInfo.m_TimeLimit > 0 && !IsRoundTimer() && (Server()->Tick() - m_GameStartTick) >= m_GameInfo.m_TimeLimit * Server()->TickSpeed() * 60) ||
+			(m_GameInfo.m_MatchNum > 0 && m_GameInfo.m_MatchCurrent >= m_GameInfo.m_MatchNum))
+		{
+			if(m_aTeamscore[TEAM_RED] != m_aTeamscore[TEAM_BLUE] || !UseSuddenDeath())
+			{
+				if(m_AnnounceWinner)
+				{
+					int WinnerTeam = TEAM_RED;
+					if(m_aTeamscore[TEAM_RED] < m_aTeamscore[TEAM_BLUE])
+						WinnerTeam = TEAM_BLUE;
+					str_format(aBuf, sizeof(aBuf), "[#%d] %s has won the competition!", GameWorld()->Team(), GetTeamName(WinnerTeam));
+					GameServer()->SendChat(-1, CGameContext::CHAT_ALL, aBuf);
+				}
+				EndMatch();
+			}
+			else
+				m_SuddenDeath = 1;
+		}
+	}
+	else
+	{
+		// gather some stats
+		int Topscore = 0;
+		int TopscoreCount = 0;
+		int TopscoreCID = -1;
+		for(int i = 0; i < MAX_CLIENTS; i++)
+		{
+			CPlayer *pPlayer = GetPlayerIfInRoom(i);
+			if(pPlayer)
+			{
+				if(pPlayer->m_Score > Topscore)
+				{
+					Topscore = pPlayer->m_Score;
+					TopscoreCount = 1;
+					TopscoreCID = pPlayer->GetCID();
+				}
+				else if(pPlayer->m_Score == Topscore)
+					TopscoreCount++;
+			}
+		}
+
+		// check score win condition
+		if((m_GameInfo.m_ScoreLimit > 0 && Topscore >= m_GameInfo.m_ScoreLimit) ||
+			(m_GameInfo.m_TimeLimit > 0 && !IsRoundTimer() && (Server()->Tick() - m_GameStartTick) >= m_GameInfo.m_TimeLimit * Server()->TickSpeed() * 60) ||
+			(m_GameInfo.m_MatchNum > 0 && m_GameInfo.m_MatchCurrent >= m_GameInfo.m_MatchNum))
+		{
+			if(TopscoreCount == 1 || !UseSuddenDeath())
+			{
+				if(m_AnnounceWinner)
+				{
+					str_format(aBuf, sizeof(aBuf), "[#%d] '%s' has won the competition!", GameWorld()->Team(), Server()->ClientName(TopscoreCID));
+					GameServer()->SendChat(-1, CGameContext::CHAT_ALL, aBuf);
+				}
+				EndMatch();
+			}
+			else
+				m_SuddenDeath = 1;
+		}
+	}
+}
+
 template<>
-CGameControllerCatch<CGameControllerSoloFNG>::CGameControllerCatch()
-: CGameControllerSoloFNG()
+CGameControllerCatch<CGameControllerSoloFNG>::CGameControllerCatch() :
+	CGameControllerSoloFNG()
 {
 	m_pGameType = "catchfng";
 	m_GameFlags = IGF_MARK_SURVIVAL;
