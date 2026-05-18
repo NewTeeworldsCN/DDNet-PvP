@@ -187,6 +187,7 @@ static void ConAddVote(IConsole::IResult *pResult, void *pUserData)
 	else
 		str_format(pOption->m_aDescription, sizeof(pOption->m_aDescription), "☐ %s", pDescription);
 	mem_copy(pOption->m_aCommand, pCommand, Len + 1);
+	pSelf->m_ResendVotes = true;
 }
 
 static void ConRemoveVote(IConsole::IResult *pResult, void *pUserData)
