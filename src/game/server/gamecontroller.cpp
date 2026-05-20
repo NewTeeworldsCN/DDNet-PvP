@@ -125,12 +125,8 @@ static void ConSetTeamAll(IConsole::IResult *pResult, void *pUserData)
 	}
 }
 
-static void ConAddVote(IConsole::IResult *pResult, void *pUserData)
+static void AddVote(class IGameController *pSelf, const char *pDescription, const char *pCommand)
 {
-	IGameController *pSelf = (IGameController *)pUserData;
-	const char *pDescription = pResult->GetString(0);
-	const char *pCommand = pResult->GetString(1);
-
 	if(pSelf->m_NumVoteOptions == MAX_VOTE_OPTIONS)
 	{
 		pSelf->GameServer()->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", "maximum number of room vote options reached");
@@ -188,6 +184,15 @@ static void ConAddVote(IConsole::IResult *pResult, void *pUserData)
 		str_format(pOption->m_aDescription, sizeof(pOption->m_aDescription), "☐ %s", pDescription);
 	mem_copy(pOption->m_aCommand, pCommand, Len + 1);
 	pSelf->m_ResendVotes = true;
+}
+
+static void ConAddVote(IConsole::IResult *pResult, void *pUserData)
+{
+	IGameController *pSelf = (IGameController *)pUserData;
+	const char *pDescription = pResult->GetString(0);
+	const char *pCommand = pResult->GetString(1);
+
+	AddVote(pSelf, pDescription, pCommand);
 }
 
 static void ConRemoveVote(IConsole::IResult *pResult, void *pUserData)
