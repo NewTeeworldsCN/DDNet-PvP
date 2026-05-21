@@ -280,6 +280,8 @@ public:
 	bool IsProtected();
 	CNetObj_PlayerInput *GetInput() { return &m_Input; };
 	CNetObj_PlayerInput *GetPrevInput() { return &m_PrevInput; };
+	CNetObj_PlayerInput *GetLatestInput() { return &m_LatestInput; };
+	CNetObj_PlayerInput *GetLatestPrevInput() { return &m_LatestPrevInput; };
 
 	int GetLastAction() const
 	{
