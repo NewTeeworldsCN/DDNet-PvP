@@ -1006,6 +1006,11 @@ set_src(GAME_SERVER GLOB_RECURSE src/game/server
   gamemodes/dm.h
   gamemodes/fng.cpp
   gamemodes/fng.h
+  gamemodes/hunter.cpp
+  gamemodes/hunter.h
+  gamemodes/hunter/huntern.cpp
+  gamemodes/hunter/huntern.h
+  gamemodes/hunter/hunterncommands.cpp
   gamemodes/instagib.cpp
   gamemodes/instagib.h
   gamemodes/lms.cpp
