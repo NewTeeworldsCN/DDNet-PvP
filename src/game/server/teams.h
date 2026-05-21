@@ -145,6 +145,7 @@ public:
 	static void ClearMaps();
 	static void AddMap(const char *pMapName);
 	static int GetMapIndex(const char *pMapName);
+	static const char *GetMapName(int i) { return m_aMapNames[i]; };
 
 	void UpdateGameTypeName();
 	static const char *GameTypeName() { return m_aGameTypeName; }

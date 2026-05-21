@@ -88,6 +88,11 @@ enum
 	INSTANCE_CONNECTION_FORCED,
 };
 
+enum
+{
+	MAX_MAPROTATIONS = 64,
+};
+
 /*
 	Class: Game Controller
 		Controls the main game logic. Keeping track of team and player score,
@@ -300,6 +305,11 @@ public:
 	// mega map stuff
 	char m_aMap[128];
 	int m_MapIndex;
+
+	// maprotations in mega map
+	int m_aMapMask[MAX_MAPROTATIONS];
+	int m_aMapRotations[MAX_MAPROTATIONS];
+	bool CycleMap();
 
 	// internal events
 	void StartController();

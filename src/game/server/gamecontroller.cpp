@@ -344,6 +344,197 @@ static void ConChangeGameType(IConsole::IResult *pResult, void *pUserData)
 	}
 }
 
+static void ConMapRotations(IConsole::IResult *pResult, void *pUserData)
+{
+	IGameController *pSelf = (IGameController *)pUserData;
+
+	pSelf->InstanceConsole()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "instance", "Value: ");
+
+	char aBuf[256];
+	for(int i = 0; i < MAX_MAPROTATIONS; ++i)
+	{
+		if(!pSelf->m_aMapRotations[i])
+			break;
+
+		const char *pMapName = pSelf->GameServer()->Teams()->GetMapName(pSelf->m_aMapRotations[i]);
+		if(!pMapName)
+			continue;
+
+		str_format(aBuf, sizeof(aBuf), "Slot%d | Map%d: %s, ", i, pSelf->m_aMapRotations[i], pMapName);
+		pSelf->InstanceConsole()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "instance", aBuf);
+	}
+}
+
+static void ConMapRotationsAdd(IConsole::IResult *pResult, void *pUserData)
+{
+	IGameController *pSelf = (IGameController *)pUserData;
+
+	char aBuf[256];
+
+	const char *pMapName;
+	int MapIndex;
+	bool IsError;
+
+	for(int i = 0, j = 0; i < pResult->NumArguments(); i++)
+	{
+		IsError = true;
+		pMapName = pResult->GetString(i);
+
+		for(; j < MAX_MAPROTATIONS; j++)
+		{
+			if(pSelf->m_aMapRotations[j])
+				continue;
+
+			MapIndex = pSelf->GameServer()->Teams()->GetMapIndex(pMapName);
+			if(MapIndex == 0)
+				break;
+
+			MapIndex -= 1; // magic in CGameTeams
+			pSelf->m_aMapRotations[j] = MapIndex;
+
+			str_format(aBuf, sizeof(aBuf), "Added map%d '%s' to slot %d", i, pMapName, j);
+			pSelf->InstanceConsole()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "instance", aBuf);
+
+			IsError = false;
+			break;
+		}
+		if(!IsError)
+			continue;
+		str_format(aBuf, sizeof(aBuf), "Cannot add map%d '%s' to slot %d (%s)", i, pMapName, j, (j >= MAX_MAPROTATIONS ? "Out of Range" : "No Map Found"));
+		pSelf->InstanceConsole()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "instance", aBuf);
+	}
+}
+
+static void ConMapRotationsRemove(IConsole::IResult *pResult, void *pUserData)
+{
+	IGameController *pSelf = (IGameController *)pUserData;
+
+	if(pResult->NumArguments() < 1)
+	{
+		mem_zero(pSelf->m_aMapRotations, sizeof(pSelf->m_aMapRotations));
+		pSelf->InstanceConsole()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "instance", "Remove all map for maprotations");
+		return;
+	}
+
+	int TargetMap = pResult->GetInteger(0);
+
+	if(!pSelf->m_aMapRotations[TargetMap])
+	{
+		char aBuf[64];
+		str_format(aBuf, sizeof(aBuf), "Cannot remove map in empty slot %d", TargetMap);
+		pSelf->InstanceConsole()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "instance", aBuf);
+		return;
+	}
+
+	mem_move(&pSelf->m_aMapRotations[TargetMap], &pSelf->m_aMapRotations[TargetMap + 1], sizeof(int) * (MAX_MAPROTATIONS - TargetMap - 1));
+	pSelf->m_aMapRotations[MAX_MAPROTATIONS - 1] = 0;
+
+	char aBuf[32];
+	str_format(aBuf, sizeof(aBuf), "Removed map in slot %d for maprotations", TargetMap);
+	pSelf->InstanceConsole()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "instance", aBuf);
+}
+
+static void ConMapMask(IConsole::IResult *pResult, void *pUserData)
+{
+	IGameController *pSelf = (IGameController *)pUserData;
+
+	pSelf->InstanceConsole()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "instance", "Value: ");
+
+	char aBuf[256];
+	for(int i = 0; i < MAX_MAPROTATIONS; ++i)
+	{
+		const char *pMapName = pSelf->GameServer()->Teams()->GetMapName(i);
+		if(!pMapName[0])
+			break;
+
+		str_format(aBuf, sizeof(aBuf), "Mask: 0x%x | Map%d: %s", pSelf->m_aMapMask[i], i, pMapName);
+		pSelf->InstanceConsole()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "instance", aBuf);
+	}
+}
+
+static void ConMapMaskAdd(IConsole::IResult *pResult, void *pUserData)
+{
+	IGameController *pSelf = (IGameController *)pUserData;
+
+	const char *pMapName = pResult->GetString(0);
+	int MapMask = pResult->GetInteger(1);
+	char aBuf[64];
+
+	int MapIndex = pSelf->GameServer()->Teams()->GetMapIndex(pMapName);
+	if(MapIndex == 0)
+	{
+		str_format(aBuf, sizeof(aBuf), "Cannot find map: '%s'", pMapName);
+		pSelf->InstanceConsole()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "instance", aBuf);
+		return;
+	}
+
+	MapIndex -= 1; // magic in CGameTeams
+	pSelf->m_aMapMask[MapIndex] = MapMask;
+
+	str_format(aBuf, sizeof(aBuf), "Add mask 0x%x to map%d '%s'", MapMask, MapIndex, pMapName);
+	pSelf->InstanceConsole()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "instance", aBuf);
+	return;
+}
+
+static void ConMapMaskRemove(IConsole::IResult *pResult, void *pUserData)
+{
+	IGameController *pSelf = (IGameController *)pUserData;
+
+	if(pResult->NumArguments() == 0)
+	{
+		mem_zero(pSelf->m_aMapMask, sizeof(pSelf->m_aMapMask));
+		pSelf->InstanceConsole()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "instance", "Remove all mask for maps");
+		return;
+	}
+
+	char aBuf[64];
+	const char *pMapName = pResult->GetString(0);
+
+	for(int i = 0; i < MAX_MAPROTATIONS; i++)
+	{
+		int MapIndex = pSelf->GameServer()->Teams()->GetMapIndex(pMapName);
+		if(MapIndex == 0)
+		{
+			str_format(aBuf, sizeof(aBuf), "Cannot find map: '%s'", pMapName);
+			pSelf->InstanceConsole()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "instance", aBuf);
+			return;
+		}
+
+		MapIndex -= 1; // magic in CGameTeams
+		pSelf->m_aMapMask[MapIndex] = 0;
+
+		str_format(aBuf, sizeof(aBuf), "Remove mask for map%d '%s'", MapIndex, pMapName);
+		pSelf->InstanceConsole()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "instance", aBuf);
+		return;
+	}
+}
+
+static void ConMapMaskAddVote(IConsole::IResult *pResult, void *pUserData)
+{
+	IGameController *pSelf = (IGameController *)pUserData;
+
+	char aBuf[64];
+	char Description[1024];
+	char Command[1024];
+	int Mask = pResult->GetInteger(0);
+	const char *pDescPrefix = pResult->GetString(1);
+
+	for(int i = 0; i < MAX_MAPROTATIONS; ++i)
+	{
+		const char *pMapName = pSelf->GameServer()->Teams()->GetMapName(i);
+		if(!pMapName[0])
+			break;
+		if(!(pSelf->m_aMapMask[i] & Mask))
+			continue;
+
+		str_format(Description, sizeof(Description), "%s%s", pDescPrefix, pMapName);
+		str_format(Command, sizeof(Command), "map %s", pMapName);
+		AddVote(pSelf, Description, Command);
+		str_format(aBuf, sizeof(aBuf), "Add map%d: %s to vote menu", i, pMapName);
+		pSelf->InstanceConsole()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "instance", aBuf);
+	}
+}
+
 int IGameController::MakeGameFlag(int GameFlag)
 {
 	int Flags = 0;
@@ -466,6 +657,13 @@ IGameController::IGameController()
 	m_pInstanceConsole->Register("set_team_all", "i[team-id]", CFGFLAG_INSTANCE, ConSetTeamAll, this, "Set team of all players to team");
 	m_pInstanceConsole->Register("help", "?r[command]", CFGFLAG_CHAT | CFGFLAG_INSTANCE | CFGFLAG_NO_CONSENT, ConHelp, this, "Shows help to command, general help if left blank");
 	m_pInstanceConsole->Register("info", "", CFGFLAG_CHAT | CFGFLAG_INSTANCE | CFGFLAG_NO_CONSENT, ConHelp, this, "Shows help to command, general help if left blank");
+	m_pInstanceConsole->Register("maprotations", "", CFGFLAG_CHAT | CFGFLAG_INSTANCE, ConMapRotations, this, "Show maprotations");
+	m_pInstanceConsole->Register("maprotations_add", "?s[maps] ?s[maps] ?s[maps] ?s[maps] ?s[maps] ?s[maps] ?s[maps] ?s[maps] ?s[maps] ?s[maps] ?s[maps] ?s[maps] ?s[maps] ?s[maps] ?s[maps] ?s[maps] ?s[maps] ?s[maps] ?s[maps] ?s[maps] ?s[maps] ?s[maps] ?s[maps] ?s[maps]", CFGFLAG_CHAT | CFGFLAG_INSTANCE, ConMapRotationsAdd, this, "Add maprotations");
+	m_pInstanceConsole->Register("maprotations_remove", "?i[map-id]", CFGFLAG_CHAT | CFGFLAG_INSTANCE, ConMapRotationsRemove, this, "Remove maprotation");
+	m_pInstanceConsole->Register("mapmask", "", CFGFLAG_CHAT | CFGFLAG_INSTANCE, ConMapMask, this, "Show all mapmask");
+	m_pInstanceConsole->Register("mapmask_add", "s[mapname] i[mapmask]", CFGFLAG_CHAT | CFGFLAG_INSTANCE, ConMapMaskAdd, this, "Add mapmask to map");
+	m_pInstanceConsole->Register("mapmask_remove", "?s[mapname]", CFGFLAG_CHAT | CFGFLAG_INSTANCE, ConMapMaskRemove, this, "Remove mapmask to map");
+	m_pInstanceConsole->Register("mapmask_addvote", "i[mapmask] s[desc_prefix]", CFGFLAG_CHAT | CFGFLAG_INSTANCE, ConMapMaskAddVote, this, "Add map vote by mapmask");
 
 	// vote commands
 	m_pInstanceConsole->Register("add_vote", "s[name] r[command]", CFGFLAG_INSTANCE, ConAddVote, this, "Add a voting option");
@@ -1256,6 +1454,14 @@ void IGameController::DoWincheckMatch()
 				m_SuddenDeath = 1;
 		}
 	}
+
+	if(IsEndMatch())
+	{
+		if(m_GameInfo.m_MatchNum <= 0 || m_GameInfo.m_MatchCurrent < m_GameInfo.m_MatchNum)
+			return;
+
+		CycleMap();
+	}
 }
 
 void IGameController::ResetGame()
@@ -1550,6 +1756,32 @@ void IGameController::StartRound()
 	}
 	else
 		SetGameState(IGS_WARMUP_GAME, TIMER_INFINITE);
+}
+
+bool IGameController::CycleMap()
+{
+	if(!m_aMapRotations[0])
+		return false;
+
+	bool CurrentMapfound = false;
+
+	for(int i = 0; i < MAX_MAPROTATIONS; ++i)
+	{
+		if(!m_aMapRotations[i])
+			break;
+		else if(m_aMapRotations[i] == m_MapIndex) 
+			CurrentMapfound = true;
+		else if(CurrentMapfound)
+		{
+			m_MapIndex = m_aMapRotations[i];
+			GameServer()->Teams()->ReloadGameInstance(GameWorld()->Team());
+			return true;
+		}
+	}
+
+	m_MapIndex = m_aMapRotations[0];
+	GameServer()->Teams()->ReloadGameInstance(GameWorld()->Team());
+	return true;
 }
 
 void IGameController::OnPlayerReadyChange(CPlayer *pPlayer)
