@@ -34,18 +34,11 @@ jobs:
         cd release
         cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG=. -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE=. ${{ matrix.cmake-args }}
         cmake --build . --config Release --target DDNet-Server -j 4
-        cp ../room_config ./ -r
 
     - name: Test release
       run:  |
         cd release
         ./${{ matrix.executable-file }} shutdown
-
-#    - name: Upload ${{ matrix.os }} Package Artifacts
-#      uses: actions/upload-artifact@v4
-#      with:
-#        name: ddnetpvp-${{ matrix.os }}
-#        path: release/
 
     - name: Upload ${{ matrix.os }} Executable Artifacts
       uses: actions/upload-artifact@v4

@@ -606,6 +606,31 @@ set(EXPECTED_DATA
   maps/mega_std_collection.map.cfg
   maps7/license.txt
   maps7/mega_std_collection.map
+  room_config/lobby.rcfg
+  room_config/maps/all.rcfg
+  room_config/maps/ctf.rcfg
+  room_config/maps/dm.rcfg
+  room_config/maps/fng.rcfg
+  room_config/modes.rcfg
+  room_config/modes/catch.rcfg
+  room_config/modes/catchfng.rcfg
+  room_config/modes/ctf.rcfg
+  room_config/modes/dm.rcfg
+  room_config/modes/fng1o1.rcfg
+  room_config/modes/fng4o4.rcfg
+  room_config/modes/fngsuperconfig.rcfg
+  room_config/modes/gctf.rcfg
+  room_config/modes/gdm.rcfg
+  room_config/modes/gtdm.rcfg
+  room_config/modes/ictf.rcfg
+  room_config/modes/idm.rcfg
+  room_config/modes/itdm.rcfg
+  room_config/modes/lms.rcfg
+  room_config/modes/lobbyfng.rcfg
+  room_config/modes/lobbysolofng.rcfg
+  room_config/modes/lts.rcfg
+  room_config/modes/tdm.rcfg
+  room_config/modes/zcatch.rcfg
   wordlist.txt
 )
 
