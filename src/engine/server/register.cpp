@@ -633,8 +633,6 @@ void CRegister::OnConfigChange()
 			}
 		}
 	}
-	m_aProtocolEnabled[PROTOCOL_TW7_IPV6] = false;
-	m_aProtocolEnabled[PROTOCOL_TW7_IPV4] = false;
 	m_GotCommunityToken = (bool)m_pConfig->m_SvRegisterCommunityToken[0];
 	if(m_GotCommunityToken)
 	{
