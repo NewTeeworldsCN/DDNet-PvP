@@ -12,7 +12,7 @@ CGameControllerHunterN::CGameControllerHunterN() :
 {
 	INSTANCE_CONFIG_INT(&m_GameoverTime, "htn_gameover_time", 6, 0, 0x7FFFFFFF, CFGFLAG_CHAT | CFGFLAG_INSTANCE, "结算界面时长秒数 (整数, 默认6, 限制0~2147483647)");
 	INSTANCE_CONFIG_INT(&m_HunterDeathBroadcast, "htn_hunt_death_broadcast", 1, 0, 2, CFGFLAG_CHAT | CFGFLAG_INSTANCE, "是否广播猎人死亡(1=仅猎人广播, 2=全体广播) (开关, 默认0, 限制0~2)");
-	INSTANCE_CONFIG_INT(&m_HunterDeathEffect, "htn_hunt_death_effert", 0, 0, 1, CFGFLAG_CHAT | CFGFLAG_INSTANCE, "猎人死亡是否使用出生烟 (开关, 默认0, 限制0~1)");
+	INSTANCE_CONFIG_INT(&m_HunterDeathSmoke, "htn_hunt_death_smoke", 0, 0, 1, CFGFLAG_CHAT | CFGFLAG_INSTANCE, "猎人死亡是否使用出生烟 (开关, 默认0, 限制0~1)");
 	INSTANCE_CONFIG_INT(&m_HunterListBroadcast, "htn_hunt_list_broadcast", 0, 0, 1, CFGFLAG_CHAT | CFGFLAG_INSTANCE, "是否全体广播猎人列表 (开关, 默认0, 限制0~1)");
 	INSTANCE_CONFIG_INT(&m_HunterRatio, "htn_hunt_ratio", 4, 2, MAX_CLIENTS, CFGFLAG_CHAT | CFGFLAG_INSTANCE, "几个玩家里选取一个猎人 (整数, 默认4, 限制2~64)");
 	INSTANCE_CONFIG_INT(&m_Wincheckdeley, "htn_wincheck_deley", 200, 0, 0x7FFFFFFF, CFGFLAG_CHAT | CFGFLAG_INSTANCE, "终局判断延时毫秒 (整数, 默认200, 限制0~2147483647)");
@@ -109,13 +109,20 @@ void CGameControllerHunterN::DoWincheckRound()
 		CPlayer *pPlayer = GetPlayerIfInRoom(i);
 		if(!IsPlaying(pPlayer))
 			continue;
+		int Score = m_aHiddenScore[i];
 		if(IsAlive(pPlayer))
-			m_aHiddenScore[i] += 2;
+		{
+			if(m_aTeam[i] != TEAM_HUNTER)
+				Score += 2;
+		}
+		else
+		{
+			char aBuf[32];
+			str_format(aBuf, sizeof(aBuf), "本回合你拿到了 %d 分", Score);
+			SendChatTarget(i, aBuf);
+		}
 
-		pPlayer->m_Score += m_aHiddenScore[i];
-		char aBuf[32];
-		str_format(aBuf, sizeof(aBuf), "本回合你拿到了 %d 分", m_aHiddenScore[i]);
-		SendChatTarget(i, aBuf);
+		pPlayer->m_Score += Score;
 	}
 
 	if(IsTimeEnd)
@@ -171,7 +178,7 @@ int CGameControllerHunterN::OnCharacterDeath(class CCharacter *pVictim, class CP
 	char aBuf[96];
 	if(m_aClass[VictimCID] == HunterClass::ID_HUNTER)
 	{
-		if(m_HunterDeathEffect)
+		if(m_HunterDeathSmoke)
 			GameWorld()->CreatePlayerSpawn(pVictim->m_Pos);
 
 		m_HunterLeft--;

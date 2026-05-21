@@ -337,7 +337,8 @@ void CGameControllerHunterN::ConGiveWeapon(IConsole::IResult *pResult, void *pUs
 	else if(!pPlayer->GetCharacter() || !pPlayer->GetCharacter()->IsAlive())
 		pSelf->InstanceConsole()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "huntern", "character is dead");
 	else
-	{	pPlayer->GetCharacter()->RemoveWeapon((pResult->GetInteger(1) < NUM_WEAPONS && pResult->GetInteger(1) >= 0) ? pResult->GetInteger(1) : 0); // Slot
+	{
+		pPlayer->GetCharacter()->RemoveWeapon((pResult->GetInteger(1) < NUM_WEAPONS && pResult->GetInteger(1) >= 0) ? pResult->GetInteger(1) : 0); // Slot
 		if(!pResult->GetInteger(4)) // Give Weapon
 			pPlayer->GetCharacter()->GiveWeapon((pResult->GetInteger(1) < NUM_WEAPONS && pResult->GetInteger(1) >= 0) ? pResult->GetInteger(1) : 0, // Slot
 				pResult->GetInteger(0), // Type
@@ -358,14 +359,16 @@ void CGameControllerHunterN::ConSetHeal(IConsole::IResult *pResult, void *pUserD
 	else if(!pPlayer->GetCharacter() || !pPlayer->GetCharacter()->IsAlive())
 		pSelf->InstanceConsole()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "huntern", "character is dead");
 	else
-	{	if(pResult->NumArguments() > 3) // Set m_MaxHealth
+	{
+		if(pResult->NumArguments() > 3) // Set m_MaxHealth
 			pPlayer->GetCharacter()->SetMaxHealth(pResult->GetInteger(3) > 0 ? pResult->GetInteger(3) : 0); // math maximum(pResult->GetInteger(3), 0);
 		if(pResult->NumArguments() > 4) // Set m_MaxArmor
 			pPlayer->GetCharacter()->SetMaxArmor(pResult->GetInteger(4) > 0 ? pResult->GetInteger(4) : 0); // math maximum(pResult->GetInteger(4), 0);
 
 		pPlayer->GetCharacter()->SetHealth(pResult->GetInteger(0)); // Set Health
 		if(pResult->NumArguments() > 1)
-			pPlayer->GetCharacter()->SetArmor(pResult->GetInteger(1));} // Set Armor
+			pPlayer->GetCharacter()->SetArmor(pResult->GetInteger(1)); // Set Armor
+	}
 }
 
 void CGameControllerHunterN::ConRevive(IConsole::IResult *pResult, void *pUserData)

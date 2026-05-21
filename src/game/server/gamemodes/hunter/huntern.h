@@ -6,7 +6,7 @@
 
 #include <game/server/gamemodes/hunter.h>
 
-#define HUNTERN_VERSION "0.5a0_p4"
+#define HUNTERN_VERSION "0.5a0_p5"
 #define HUNTERN_REPO "https://github.com/Hu1night/DDNet-PvP/branches"
 
 class IClientIDRNG
@@ -162,7 +162,7 @@ public:
 protected:
 	int m_GameoverTime;
 	int m_HunterDeathBroadcast;
-	int m_HunterDeathEffect;
+	int m_HunterDeathSmoke;
 	int m_HunterListBroadcast;
 	int m_HunterRatio;
 	int m_Wincheckdeley;

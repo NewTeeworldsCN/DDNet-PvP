@@ -1,0 +1,100 @@
+# hunterN room config
+
+# game settings
+map hunter2
+timelimit 3
+warmup 0
+powerups 1
+#tournament_chat 1
+
+# room votes
+add_vote " " "info"
+add_vote "=== ROOM SETTINGS ===" "info"
+
+# rulesets
+add_vote "Rule: 2 plyaer slots" "player_slots 2"
+add_vote "Rule: 128 plyaer slots" "player_slots 128"
+add_vote "Rule: timelimit 2min" "timelimit 2"
+add_vote "Rule: timelimit 3min" "timelimit 3"
+add_vote "Rule: timelimit 4min" "timelimit 4"
+add_vote "Rule: timelimit 5min" "timelimit 5"
+add_vote "Rule: hunter ratio 3" "htn_hunt_ratio 3"
+add_vote "Rule: hunter ratio 4" "htn_hunt_ratio 4"
+add_vote "Rule: hunter ratio 5" "htn_hunt_ratio 5"
+add_vote "Rule: hunter ratio 6" "htn_hunt_ratio 6"
+add_vote "Rule: Show hunter" "htn_hunt_list_broadcast 0"
+add_vote "Rule: Dont show hunter" "htn_hunt_list_broadcast 1"
+add_vote "Rule: Disable hunter death broadcast" "htn_hunt_death_broadcast 0"
+add_vote "Rule: Hunter death broadcast hunter only" "htn_hunt_death_broadcast 1"
+add_vote "Rule: Hunter death broadcast all player" "htn_hunt_death_broadcast 2"
+add_vote "Rule: NO hunter death smoke" "htn_hunt_death_smoke 0"
+add_vote "Rule: Do Hunter death smoke" "htn_hunt_death_smoke 1"
+add_vote "Rule: 4 Roundlimit" "roundlimit 4"
+add_vote "Rule: 8 Roundlimit" "roundlimit 8"
+add_vote "Rule: 16 Roundlimit" "roundlimit 16"
+add_vote "Rule: 64 Roundlimit" "roundlimit 64"
+add_vote "Rule: 200ms deley for wincheck" "htn_wincheck_deley 200"
+add_vote "Rule: 500ms deley for wincheck" "htn_wincheck_deley 500"
+add_vote "Rule: 1000ms deley for wincheck" "htn_wincheck_deley 1000"
+add_vote "Rule: Skip pause for Gameover" "htn_gameover_time 0"
+add_vote "Rule: 6 Sec pause for Gameover" "htn_gameover_time 6"
+
+# add mode switch votes
+add_vote " " "info"
+exec "room_config/modes.rcfg"
+
+# Universal
+# tournament_chat "Tournament chat mode, 0 = disabled, 1 = spectator can't send global chat, 2 = all players can only send team chat"
+# warmup "Number of seconds to do warmup before match starts"
+# countdown "Number of seconds to freeze the game in a countdown before match starts, (-: for survival, +: for all"
+# teamdamage "Team damage (1 = half damage, 2 = full damage)"
+# match_swap "Swap teams between matches (2 = shuffle team)"
+# scorelimit "Score limit (0 disables)"
+# timelimit "Time limit in minutes (0 disables)"
+# roundlimit "Round limit for game with rounds (0 disables)"
+# teambalance_time "How many minutes to wait before autobalancing teams"
+# kill_delay "The minimum time in seconds between kills (-1 = disable kill)"
+# player_slots "Maximum room size (from 2 to 64)"
+# player_ready_mode "1 = players can ready to start the game on warmup 2 = players can unready to pause the game, 3 = both"
+# reset_on_match_end "Whether to reset to the initial state (warmup or wait for ready) after a match."
+# pause_per_match "Number of pause (using ready state) allowed per player per match"
+# minimum_players "Number of players required to start a match, (0 = the game can't start)"
+
+# Maprotations and Mapvote for HunterN
+htn_mapmask_add "ctf1" 8
+htn_mapmask_add "ctf2" 16
+htn_mapmask_add "ctf3" 8
+htn_mapmask_add "ctf4" 8
+htn_mapmask_add "ctf5" 16
+htn_mapmask_add "ctf6" 16
+htn_mapmask_add "ctf7" 8
+htn_mapmask_add "ctf8" 16
+htn_mapmask_add "dm1" 1
+htn_mapmask_add "dm2" 2
+htn_mapmask_add "dm3" 1
+htn_mapmask_add "dm6" 1
+htn_mapmask_add "dm7" 2
+htn_mapmask_add "dm8" 1
+htn_mapmask_add "dm9" 1
+htn_mapmask_add "lms1" 64
+htn_mapmask_add "AliveFNG" 256
+htn_mapmask_add "hunter1" 16
+htn_mapmask_add "hunter2" 16
+htn_mapmask_add "hunter3" 16
+htn_mapmask_add "hunter4" 16
+htn_mapmask_add "hunter5" 8
+htn_mapmask_add "hunter6" 16
+htn_mapmask_add "hunter8" 32
+htn_mapmask_add "hunter9" 16
+htn_mapmask_add "hunter10" 16
+
+htn_maprotations_add hunter1
+htn_maprotations_add hunter2
+htn_maprotations_add hunter3
+htn_maprotations_add hunter6
+htn_maprotations_add hunter8
+htn_maprotations_add hunter9
+htn_maprotations_add hunter10
+
+add_vote " " "info"
+htn_mapmask_addvote 58 "Change Map："
