@@ -279,6 +279,7 @@ void CGameControllerHunterN::OnPlayerJoin(class CPlayer *pPlayer)
 	KillPlayer(pPlayer);
 	OnPlayerLeave(pPlayer);
 
+	char aBuf[256];
 	str_format(aBuf, sizeof(aBuf), "本局的 %d 个Hunter是：", static_cast<int>(m_HunterMask.count()));
 	MakeHunterList(aBuf, sizeof(aBuf));
 	SendChatTarget(CID, aBuf);
