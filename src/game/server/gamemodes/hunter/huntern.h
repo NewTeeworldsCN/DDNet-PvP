@@ -6,8 +6,7 @@
 
 #include <game/server/gamemodes/hunter.h>
 
-#define HUNTERN_VERSION "0.5a0_p5"
-#define HUNTERN_REPO "https://github.com/Hu1night/DDNet-PvP/branches"
+#define HUNTERN_VERSION "0.5"
 
 class IClientIDRNG
 {

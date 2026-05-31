@@ -271,23 +271,10 @@ void CGameControllerHunterN::OnCharacterSpawn(CCharacter *pChr)
 
 void CGameControllerHunterN::OnPlayerJoin(class CPlayer *pPlayer)
 {
-	int CID = pPlayer->GetCID();
-
-	char aBuf[64];
-	str_format(aBuf, sizeof(aBuf), "HunterN mod版本: %s : %s", HUNTERN_VERSION, GIT_SHORTREV_HASH ? GIT_SHORTREV_HASH :
-#			ifdef CONF_DEBUG
-				__DATE__
-#			else
-				""
-#			endif
-			);
-
-	SendChatTarget(CID, aBuf);
-	str_format(aBuf, sizeof(aBuf), "开源地址: %s", HUNTERN_REPO);
-	SendChatTarget(CID, aBuf);
-
 	if(!IsGameRunning())
 		return;
+
+	int CID = pPlayer->GetCID();
 
 	KillPlayer(pPlayer);
 	OnPlayerLeave(pPlayer);
@@ -440,13 +427,6 @@ void CGameControllerHunterN::OnWorldReset()
 
 	int HunterNum = GetHunterNum();
 	CClientMask PlayerMask = GetPlayingMask();
-	// for(int i = 0; i < MAX_CLIENTS; i++)
-	// 	if(PlayerMask.test(i))
-	// 	{
-	// 		char aBuf[64] = {0};
-	// 		str_format(aBuf, sizeof(aBuf), "%d - %c", i, m_Rng.m_aWeight[i] + '0');
-	// 		SendChatTarget(-1, aBuf);
-	// 	}
 	CClientMask SelectMask;
 	SelectMask.reset();
 	GetRng(PlayerMask)->Update(PlayerMask);
@@ -474,7 +454,7 @@ void CGameControllerHunterN::OnWorldReset()
 
 	char aBuf[64];
 	str_format(aBuf, sizeof(aBuf), "本回合有 %d 个猎人Hunter has been selected.", HunterNum);
-	SendChatTarget(-1, "——————欢迎来到HunterN猎人杀——————");
+	SendChatTarget(-1, "——————欢迎来到猎人杀——————");
 	SendChatTarget(-1, aBuf);
 	SendChatTarget(-1, "规则：每回合秘密抽选猎人 猎人对战平民 活人看不到死人消息");
 	SendChatTarget(-1, "      猎人双倍伤害 有瞬杀锤子(平民无锤)和破片榴弹(对自己无伤)");
